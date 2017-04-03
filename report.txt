@@ -1,0 +1,66 @@
+--------------------------------------------------------------------------------
+Processing file './core/solver.py'
+ outputting to './core/solver.py'
+--------------------------------------------------------------------------------
+
+'./core/solver.py' Line 106
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.initialize_all_variables' to 'tf.global_variables_initializer'
+
+    Old:             tf.initialize_all_variables().run()
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~         
+    New:             tf.global_variables_initializer().run()
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~         
+
+'./core/solver.py' Line 107
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.train.SummaryWriter' to 'tf.summary.FileWriter'
+
+    Old:             summary_writer = tf.train.SummaryWriter(self.log_path, graph=tf.get_default_graph())
+                                      ~~~~~~~~~~~~~~~~~~~~~~                                              
+    New:             summary_writer = tf.summary.FileWriter(self.log_path, graph=tf.get_default_graph())
+                                      ~~~~~~~~~~~~~~~~~~~~~                                              
+
+'./core/solver.py' Line 89
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.scalar_summary' to 'tf.summary.scalar'
+
+    Old:         tf.scalar_summary('batch_loss', loss)
+                 ~~~~~~~~~~~~~~~~~                     
+    New:         tf.summary.scalar('batch_loss', loss)
+                 ~~~~~~~~~~~~~~~~~                     
+
+'./core/solver.py' Line 91
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.histogram_summary' to 'tf.summary.histogram'
+
+    Old:             tf.histogram_summary(var.op.name, var)
+                     ~~~~~~~~~~~~~~~~~~~~                   
+    New:             tf.summary.histogram(var.op.name, var)
+                     ~~~~~~~~~~~~~~~~~~~~                   
+
+'./core/solver.py' Line 93
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.histogram_summary' to 'tf.summary.histogram'
+
+    Old:             tf.histogram_summary(var.op.name+'/gradient', grad)
+                     ~~~~~~~~~~~~~~~~~~~~                                
+    New:             tf.summary.histogram(var.op.name+'/gradient', grad)
+                     ~~~~~~~~~~~~~~~~~~~~                                
+
+'./core/solver.py' Line 95
+--------------------------------------------------------------------------------
+
+Renamed function 'tf.merge_all_summaries' to 'tf.summary.merge_all'
+
+    Old:         summary_op = tf.merge_all_summaries() 
+                              ~~~~~~~~~~~~~~~~~~~~~~    
+    New:         summary_op = tf.summary.merge_all() 
+                              ~~~~~~~~~~~~~~~~~~~~    
+
+

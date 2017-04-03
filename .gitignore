@@ -92,5 +92,12 @@ ENV/
 .DS_Store
 ._.DS_Store
 
-# data
+# data and folders with models
 ./data
+data/
+
+image/
+log/
+model/
+# report.txt
+
