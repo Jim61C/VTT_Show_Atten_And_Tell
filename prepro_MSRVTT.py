@@ -16,9 +16,9 @@ def _process_caption_data(caption_file, video_dir, video_exist, max_length):
     with open(caption_file) as f:
         caption_data = json.load(f)
 
-    video_exist = None
-    #if (video_exist != 'dummy/'):
-    #    video_exist = cPickle.load(open(video_exist, 'rb'))
+    video_exist_dict = None
+    if (video_exist != 'dummy/'):
+        video_exist_dict = cPickle.load(open(video_exist, 'rb'))
 
     # id_to_filename is a dictionary such as {video_id: filename]}
     id_to_filename = {video['id']: video['video_id'] for video in caption_data['videos']}
@@ -29,15 +29,14 @@ def _process_caption_data(caption_file, video_dir, video_exist, max_length):
     for annotation in caption_data['sentences']:
         #video_id = annotation['video_id']
         annotation['file_name'] = os.path.join(video_dir, annotation['video_id']) + '.mp4'
-        annotation['image_id'] = int(annotation['video_id'][5:])
-        if (video_exist is None or video_exist[annotation['image_id']]):
+        annotation['video_id'] = int(annotation['video_id'][5:])
+        if (video_exist_dict is None or video_exist_dict[str(annotation['video_id'])]):
             data += [annotation]
 
     # convert to pandas dataframe (for later visualization or debugging)
     caption_data = pd.DataFrame.from_dict(data)
     del caption_data['sen_id']
-    del caption_data['video_id']
-    caption_data.sort_values(by='image_id', inplace=True)
+    caption_data.sort_values(by='video_id', inplace=True)
     caption_data = caption_data.reset_index(drop=True)
 
     del_idx = []
@@ -108,7 +107,7 @@ def _build_file_names(annotations):
     image_file_names = []
     id_to_idx = {}
     idx = 0
-    video_ids = annotations['image_id']
+    video_ids = annotations['video_id']
     file_names = annotations['file_name']
     for video_id, file_name in zip(video_ids, file_names):
         if not video_id in id_to_idx:
@@ -122,7 +121,7 @@ def _build_file_names(annotations):
 
 def _build_video_idxs(annotations, id_to_idx):
     video_idxs = np.ndarray(len(annotations), dtype=np.int32)
-    video_ids = annotations['image_id']
+    video_ids = annotations['video_id']
     for i, video_id in enumerate(video_ids):
         video_idxs[i] = id_to_idx[video_id]
     return video_idxs
@@ -147,8 +146,8 @@ def main():
                                               video_dir='dummy/',
                                               video_exist='data_MSRVTT/feature_exist.pkl',
                                               max_length=max_length)
-    train_dataset = train_val_dataset[train_val_dataset['image_id'] <= 6512]
-    val_dataset = train_val_dataset[train_val_dataset['image_id'] > 6512].reset_index(drop=True)
+    train_dataset = train_val_dataset[train_val_dataset['video_id'] <= 6512]
+    val_dataset = train_val_dataset[train_val_dataset['video_id'] > 6512].reset_index(drop=True)
 
     # test split  images and 200000 captions
     test_dataset = _process_caption_data(caption_file='data_MSRVTT/annotations/test_videodatainfo.json',
@@ -166,7 +165,7 @@ def main():
         annotations = load_pickle('./data_MSRVTT/%s/%s.annotations.pkl' % (split, split))
 
         if split == 'train':
-            #word_to_idx = _build_vocab(annotations=annotations, threshold=word_count_threshold)
+            # word_to_idx = _build_vocab(annotations=annotations, threshold=word_count_threshold)
             word_to_idx = load_pickle('./word_to_idx_all.pkl')
             save_pickle(word_to_idx, './data_MSRVTT/%s/word_to_idx.pkl' % split)
 
@@ -177,13 +176,13 @@ def main():
         save_pickle(file_names, './data_MSRVTT/%s/%s.file.names.pkl' % (split, split))
 
         video_idxs = _build_video_idxs(annotations, id_to_idx)
-        save_pickle(video_idxs, './data_MSRVTT/%s/%s.image.idxs.pkl' % (split, split))
+        save_pickle(video_idxs, './data_MSRVTT/%s/%s.video.idxs.pkl' % (split, split))
 
         # prepare reference captions to compute bleu scores later
         video_ids = {}
         feature_to_captions = {}
         i = -1
-        for caption, video_id in zip(annotations['caption'], annotations['image_id']):
+        for caption, video_id in zip(annotations['caption'], annotations['video_id']):
             if not video_id in video_ids:
                 video_ids[video_id] = 0
                 i += 1

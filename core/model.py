@@ -17,7 +17,7 @@ import tensorflow as tf
 
 class CaptionGenerator(object):
     def __init__(self, word_to_idx, dim_feature=[196, 512], dim_embed=512, dim_hidden=1024, n_time_step=16, 
-                  prev2out=True, ctx2out=True, alpha_c=0.0, selector=True, dropout=True):
+                  prev2out=True, ctx2out=True, alpha_c=0.0, selector=True, dropout=True, device_id = '/gpu:0'):
         """
         Args:
             word_to_idx: word-to-index mapping dictionary.
@@ -31,6 +31,7 @@ class CaptionGenerator(object):
             selector: (optional) gating scalar for context vector. (see Section (4.2.1) for explanation)
             dropout: (optional) If true then dropout layer is added.
         """
+        tf.device(device_id)
         
         self.word_to_idx = word_to_idx
         self.idx_to_word = {i: w for w, i in word_to_idx.iteritems()}

@@ -95,9 +95,15 @@ ENV/
 # data and folders with models
 ./data
 data/
+data_MSRVTT/
+
+# Symlinks
+data
+data_MSRVTT
 
 image/
 log/
 model/
 # report.txt
+
 

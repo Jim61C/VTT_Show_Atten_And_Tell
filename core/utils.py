@@ -15,7 +15,7 @@ def load_coco_data(data_path='./data', split='train'):
         data['file_names'] = pickle.load(f)   
     with open(os.path.join(data_path, '%s.captions.pkl' %split), 'rb') as f:
         data['captions'] = pickle.load(f)
-    with open(os.path.join(data_path, '%s.image.idxs.pkl' %split), 'rb') as f:
+    with open(os.path.join(data_path, '%s.video.idxs.pkl' %split), 'rb') as f:
         data['image_idxs'] = pickle.load(f)
             
     if split == 'train':       
@@ -83,6 +83,9 @@ def load_pickle(path):
         return file  
 
 def save_pickle(data, path):
+    folder_path = path[:path.rfind('/')]
+    if (not os.path.exists(folder_path)):
+        os.makedirs(folder_path)
     with open(path, 'wb') as f:
         pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
         print ('Saved %s..' %path)
