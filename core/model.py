@@ -16,8 +16,8 @@ import tensorflow as tf
 
 
 class CaptionGenerator(object):
-    def __init__(self, word_to_idx, dim_feature=[196, 512], dim_embed=512, dim_hidden=1024, n_time_step=16, 
-                  prev2out=True, ctx2out=True, alpha_c=0.0, selector=True, dropout=True):
+    def __init__(self, word_to_idx, dim_feature=[1, 2048], dim_embed=512, dim_hidden=1024, n_time_step=16, 
+                  prev2out=True, ctx2out=False, alpha_c=0.0, selector=False, dropout=True):
         """
         Args:
             word_to_idx: word-to-index mapping dictionary.
@@ -103,7 +103,7 @@ class CaptionGenerator(object):
             context = tf.multiply(beta, context, name='selected_context') 
             return context, beta
   
-    def _decode_lstm(self, x, h, context, dropout=False, reuse=False):
+    def _decode_lstm(self, x, h, dropout=False, reuse=False): #remove context
         with tf.variable_scope('logits', reuse=reuse):
             w_h = tf.get_variable('w_h', [self.H, self.M], initializer=self.weight_initializer)
             b_h = tf.get_variable('b_h', [self.M], initializer=self.const_initializer)
@@ -113,11 +113,11 @@ class CaptionGenerator(object):
             if dropout:
                 h = tf.nn.dropout(h, 0.5)
             h_logits = tf.matmul(h, w_h) + b_h
-
+            """
             if self.ctx2out:
                 w_ctx2out = tf.get_variable('w_ctx2out', [self.D, self.M], initializer=self.weight_initializer)
                 h_logits += tf.matmul(context, w_ctx2out)
-
+            """
             if self.prev2out:
                 h_logits += x
             h_logits = tf.nn.tanh(h_logits)
@@ -158,16 +158,16 @@ class CaptionGenerator(object):
         lstm_cell = tf.contrib.rnn.BasicLSTMCell(num_units=self.H)
 
         for t in range(self.T):
-            context, alpha = self._attention_layer(features, features_proj, h, reuse=(t!=0))
-            alpha_list.append(alpha)
-
+            #context, alpha = self._attention_layer(features, features_proj, h, reuse=(t!=0))
+            #alpha_list.append(alpha)
+            """
             if self.selector:
                 context, beta = self._selector(context, h, reuse=(t!=0)) 
-
+            """
             with tf.variable_scope('lstm', reuse=(t!=0)):
-                _, (c, h) = lstm_cell(inputs=tf.concat(axis=1, values=[x[:,t,:], context]), state=[c, h])
+                _, (c, h) = lstm_cell(inputs=x[:,t,:], state=[c, h])
 
-            logits = self._decode_lstm(x[:,t,:], h, context, dropout=self.dropout, reuse=(t!=0))
+            logits = self._decode_lstm(x[:,t,:], h, dropout=self.dropout, reuse=(t!=0))
             loss += tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=captions_out[:, t]) * mask[:, t])
            
         if self.alpha_c > 0:
@@ -197,22 +197,22 @@ class CaptionGenerator(object):
                 x = self._word_embedding(inputs=tf.fill([tf.shape(features)[0]], self._start))
             else:
                 x = self._word_embedding(inputs=sampled_word, reuse=True)  
-          
+            """
             context, alpha = self._attention_layer(features, features_proj, h, reuse=(t!=0))
             alpha_list.append(alpha)
-
+            
             if self.selector:
                 context, beta = self._selector(context, h, reuse=(t!=0)) 
                 beta_list.append(beta)
-
+            """
             with tf.variable_scope('lstm', reuse=(t!=0)):
-                _, (c, h) = lstm_cell(inputs=tf.concat(axis=1, values=[x, context]), state=[c, h])
+                _, (c, h) = lstm_cell(inputs=x, state=[c, h])
 
-            logits = self._decode_lstm(x, h, context, reuse=(t!=0))
+            logits = self._decode_lstm(x, h, reuse=(t!=0))
             sampled_word = tf.argmax(logits, 1)       
             sampled_word_list.append(sampled_word)     
-
-        alphas = tf.transpose(tf.stack(alpha_list), (1, 0, 2))     # (N, T, L)
-        betas = tf.transpose(tf.squeeze(beta_list), (1, 0))    # (N, T)
+        
+        alphas = [] #tf.transpose(tf.stack(alpha_list), (1, 0, 2))     # (N, T, L)
+        betas = [] #tf.transpose(tf.squeeze(beta_list), (1, 0))    # (N, T)
         sampled_captions = tf.transpose(tf.stack(sampled_word_list), (1, 0))     # (N, max_len)
         return alphas, betas, sampled_captions

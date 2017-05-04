@@ -52,6 +52,7 @@ def evaluate(data_path='./data', split='val', get_scores=False):
     print 'METEOR:\t',final_scores['METEOR']  
     print 'ROUGE_L:',final_scores['ROUGE_L']  
     print 'CIDEr:\t',final_scores['CIDEr']
+    print 'Bleu_4+METEOR+CIDEr:\t',(final_scores['Bleu_4']+final_scores['METEOR']+final_scores['CIDEr'])
     
     if get_scores:
         return final_scores
