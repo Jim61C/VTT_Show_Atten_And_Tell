@@ -29,6 +29,9 @@ def score(ref, hypo):
 def evaluate(data_path='./data', split='val', get_scores=False):
     reference_path = os.path.join(data_path, "%s/%s.references.pkl" %(split, split))
     candidate_path = os.path.join(data_path, "%s/%s.candidate.captions.pkl" %(split, split))
+
+    # print "reference_path:", reference_path
+    # print "candidate_path:", candidate_path
     
     # load caption data
     with open(reference_path, 'rb') as f:
@@ -39,7 +42,12 @@ def evaluate(data_path='./data', split='val', get_scores=False):
     # make dictionary
     hypo = {}
     for i, caption in enumerate(cand):
+        # print "i:", i, ",  caption:", caption
         hypo[i] = [caption]
+
+    # print "check references:"
+    # for i, caption in ref.iteritems():
+    #     print "i:", i 
     
     # compute bleu score
     final_scores = score(ref, hypo)
@@ -65,7 +73,9 @@ def evaluate(data_path='./data', split='val', get_scores=False):
     
     
     
-    
+def UnitTest():
+    evaluate(data_path='./data_MSRVTT', split='val', get_scores=False)
     
 
-
+if __name__ == "__main__":
+    UnitTest()

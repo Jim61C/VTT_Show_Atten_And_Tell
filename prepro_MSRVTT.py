@@ -29,14 +29,15 @@ def _process_caption_data(caption_file, video_dir, video_exist, max_length):
     for annotation in caption_data['sentences']:
         #video_id = annotation['video_id']
         annotation['file_name'] = os.path.join(video_dir, annotation['video_id']) + '.mp4'
-        annotation['video_id'] = int(annotation['video_id'][5:])
-        if (video_exist_dict is None or video_exist_dict[str(annotation['video_id'])]):
+        annotation['image_id'] = int(annotation['video_id'][5:])
+        if (video_exist_dict is None or video_exist_dict[annotation['video_id'][5:]]):
             data += [annotation]
 
     # convert to pandas dataframe (for later visualization or debugging)
     caption_data = pd.DataFrame.from_dict(data)
     del caption_data['sen_id']
-    caption_data.sort_values(by='video_id', inplace=True)
+    del caption_data['video_id']
+    caption_data.sort_values(by='image_id', inplace=True)
     caption_data = caption_data.reset_index(drop=True)
 
     del_idx = []
@@ -107,7 +108,7 @@ def _build_file_names(annotations):
     image_file_names = []
     id_to_idx = {}
     idx = 0
-    video_ids = annotations['video_id']
+    video_ids = annotations['image_id']
     file_names = annotations['file_name']
     for video_id, file_name in zip(video_ids, file_names):
         if not video_id in id_to_idx:
@@ -121,7 +122,7 @@ def _build_file_names(annotations):
 
 def _build_video_idxs(annotations, id_to_idx):
     video_idxs = np.ndarray(len(annotations), dtype=np.int32)
-    video_ids = annotations['video_id']
+    video_ids = annotations['image_id']
     for i, video_id in enumerate(video_ids):
         video_idxs[i] = id_to_idx[video_id]
     return video_idxs
@@ -129,27 +130,22 @@ def _build_video_idxs(annotations, id_to_idx):
 
 def main():
     ""
-    # batch size for extracting feature vectors from vggnet.
-    batch_size = 100
     # maximum length of caption(number of word). if caption is longer than max_length, deleted.
     max_length = 15
     # if word occurs less than word_count_threshold in training dataset, the word index is special unknown token.
     word_count_threshold = 5
-    # vgg model path
-    # vgg_model_path = './data_MSRVTT/imagenet-vgg-verydeep-19.mat'
 
     caption_file = 'data_MSRTT/annotations/train_val_videodatainfo.json'
-    image_dir = 'image/%2014_resized/'
 
     # train split: 0:6512, val split: 6513:7009
     train_val_dataset = _process_caption_data(caption_file='data_MSRVTT/annotations/train_val_videodatainfo.json',
                                               video_dir='dummy/',
                                               video_exist='data_MSRVTT/feature_exist.pkl',
                                               max_length=max_length)
-    train_dataset = train_val_dataset[train_val_dataset['video_id'] <= 6512]
-    val_dataset = train_val_dataset[train_val_dataset['video_id'] > 6512].reset_index(drop=True)
+    train_dataset = train_val_dataset[train_val_dataset['image_id'] <= 6512]
+    val_dataset = train_val_dataset[train_val_dataset['image_id'] > 6512].reset_index(drop=True)
 
-    # test split  images and 200000 captions
+    # test split 7010:9999
     test_dataset = _process_caption_data(caption_file='data_MSRVTT/annotations/test_videodatainfo.json',
                                          video_dir='dummy/',
                                          video_exist='dummy/',
@@ -161,11 +157,16 @@ def main():
     save_pickle(test_dataset, 'data_MSRVTT/test/test.annotations.pkl')
 
 
+    feature_split_start_idx = {
+    'train': 0, 
+    'val': 6513,
+    'test': 7010
+    }
     for split in ['train', 'val', 'test']:
         annotations = load_pickle('./data_MSRVTT/%s/%s.annotations.pkl' % (split, split))
 
         if split == 'train':
-            # word_to_idx = _build_vocab(annotations=annotations, threshold=word_count_threshold)
+            #word_to_idx = _build_vocab(annotations=annotations, threshold=word_count_threshold)
             word_to_idx = load_pickle('./word_to_idx_all.pkl')
             save_pickle(word_to_idx, './data_MSRVTT/%s/word_to_idx.pkl' % split)
 
@@ -176,50 +177,32 @@ def main():
         save_pickle(file_names, './data_MSRVTT/%s/%s.file.names.pkl' % (split, split))
 
         video_idxs = _build_video_idxs(annotations, id_to_idx)
-        save_pickle(video_idxs, './data_MSRVTT/%s/%s.video.idxs.pkl' % (split, split))
+        save_pickle(video_idxs, './data_MSRVTT/%s/%s.image.idxs.pkl' % (split, split))
 
         # prepare reference captions to compute bleu scores later
         video_ids = {}
         feature_to_captions = {}
+        features = [] # needed as some video clip might not be valid and these clip's features are dummy, thus should be removed from original feature array
+        
+        full_feature_data = None
+        full_feature_path = './data_MSRVTT/%s/%s.features.full.hkl' % (split, split)
+        if (os.path.exists(full_feature_path)):
+            full_feature_data = hickle.load(full_feature_path)
+
         i = -1
-        for caption, video_id in zip(annotations['caption'], annotations['video_id']):
+        for caption, video_id in zip(annotations['caption'], annotations['image_id']):
             if not video_id in video_ids:
                 video_ids[video_id] = 0
                 i += 1
                 feature_to_captions[i] = []
+                if (not full_feature_data is None):
+                    features.append(full_feature_data[video_id - feature_split_start_idx[split]])
+
             feature_to_captions[i].append(caption.lower() + ' .')
         save_pickle(feature_to_captions, './data_MSRVTT/%s/%s.references.pkl' % (split, split))
+        if (len(features) > 0):
+            hickle.dump(np.asarray(features), './data_MSRVTT/%s/%s.features.hkl' % (split, split))
         print "Finished building %s caption dataset" %split
-
-    """
-    # extract conv5_3 feature vectors
-    vggnet = Vgg19(vgg_model_path)
-    vggnet.build()
-    with tf.Session() as sess:
-        tf.initialize_all_variables().run()
-        for split in ['train', 'val', 'test']:
-            anno_path = './data/%s/%s.annotations.pkl' % (split, split)
-            save_path = './data/%s/%s.features.hkl' % (split, split)
-            annotations = load_pickle(anno_path)
-            image_path = list(annotations['file_name'].unique())
-            n_examples = len(image_path)
-
-            all_feats = np.ndarray([n_examples, 196, 512], dtype=np.float32)
-
-            for start, end in zip(range(0, n_examples, batch_size),
-                                  range(batch_size, n_examples + batch_size, batch_size)):
-                image_batch_file = image_path[start:end]
-                image_batch = np.array(map(lambda x: ndimage.imread(x, mode='RGB'), image_batch_file)).astype(
-                    np.float32)
-                feats = sess.run(vggnet.features, feed_dict={vggnet.images: image_batch})
-                all_feats[start:end, :] = feats
-                print ("Processed %d %s features.." % (end, split))
-
-            # use hickle to save huge feature vectors
-            hickle.dump(all_feats, save_path)
-            print ("Saved %s.." % (save_path))
-    """
-
 
 if __name__ == "__main__":
     main()

@@ -13,6 +13,8 @@
 from __future__ import division
 
 import tensorflow as tf
+import math
+import numpy as np
 
 
 class CaptionGenerator(object):
@@ -31,7 +33,7 @@ class CaptionGenerator(object):
             selector: (optional) gating scalar for context vector. (see Section (4.2.1) for explanation)
             dropout: (optional) If true then dropout layer is added.
         """
-        tf.device(device_id)
+        # tf.device(device_id)
         
         self.word_to_idx = word_to_idx
         self.idx_to_word = {i: w for w, i in word_to_idx.iteritems()}

@@ -100,6 +100,7 @@ class CaptioningSolver(object):
         print "Batch size: %d" %self.batch_size
         print "Iterations per epoch: %d" %n_iters_per_epoch
         
+        # config = tf.ConfigProto(allow_soft_placement = True, log_device_placement=True)
         config = tf.ConfigProto(allow_soft_placement = True)
         #config.gpu_options.per_process_gpu_memory_fraction=0.9
         config.gpu_options.allow_growth = True
@@ -122,6 +123,7 @@ class CaptioningSolver(object):
                 image_idxs = image_idxs[rand_idxs]
 
                 for i in range(n_iters_per_epoch):
+                    print "iteration: ", i+1, "self.print_every: ", self.print_every
                     captions_batch = captions[i*self.batch_size:(i+1)*self.batch_size]
                     image_idxs_batch = image_idxs[i*self.batch_size:(i+1)*self.batch_size]
                     features_batch = features[image_idxs_batch]
@@ -137,6 +139,10 @@ class CaptioningSolver(object):
                     if (i+1) % self.print_every == 0:
                         print "\nTrain loss at epoch %d & iteration %d (mini-batch): %.5f" %(e+1, i+1, l)
                         ground_truths = captions[image_idxs == image_idxs_batch[0]]
+                        print len(image_idxs)
+                        print len(image_idxs_batch[0])
+                        print len(captions[image_idxs == image_idxs_batch[0]])
+                        print "ground_truths: ", ground_truths 
                         decoded = decode_captions(ground_truths, self.model.idx_to_word)
                         for j, gt in enumerate(decoded):
                             print "Ground truth %d: %s" %(j+1, gt)                    
@@ -160,8 +166,8 @@ class CaptioningSolver(object):
                         all_gen_cap[i*self.batch_size:(i+1)*self.batch_size] = gen_cap
                     
                     all_decoded = decode_captions(all_gen_cap, self.model.idx_to_word)
-                    save_pickle(all_decoded, "./data/val/val.candidate.captions.pkl")
-                    scores = evaluate(data_path='./data', split='val', get_scores=True)
+                    save_pickle(all_decoded, "./data_MSRVTT/val/val.candidate.captions.pkl")
+                    scores = evaluate(data_path='./data_MSRVTT', split='val', get_scores=True)
                     write_bleu(scores=scores, path=self.model_path, epoch=e)
 
                 # save model's parameters
@@ -231,4 +237,4 @@ class CaptioningSolver(object):
                     feed_dict = { self.model.features: features_batch }
                     all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)  
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
-                save_pickle(all_decoded, "./data/%s/%s.candidate.captions.pkl" %(split,split))
+                save_pickle(all_decoded, "./data_MSRVTT/%s/%s.candidate.captions.pkl" %(split,split))
