@@ -140,7 +140,7 @@ def main():
     # train split: 0:6512, val split: 6513:7009
     train_val_dataset = _process_caption_data(caption_file='data_MSRVTT/annotations/train_val_videodatainfo.json',
                                               video_dir='dummy/',
-                                              video_exist='data_MSRVTT/feature_exist.pkl',
+                                              video_exist='dummy/',
                                               max_length=max_length)
     train_dataset = train_val_dataset[train_val_dataset['image_id'] <= 6512]
     val_dataset = train_val_dataset[train_val_dataset['image_id'] > 6512].reset_index(drop=True)
@@ -180,7 +180,7 @@ def main():
         save_pickle(video_idxs, './data_MSRVTT/%s/%s.image.idxs.pkl' % (split, split))
 
         # prepare reference captions to compute bleu scores later
-        video_ids = {}
+        video_ids = set()
         feature_to_captions = {}
         features = [] # needed as some video clip might not be valid and these clip's features are dummy, thus should be removed from original feature array
         
@@ -192,7 +192,7 @@ def main():
         i = -1
         for caption, video_id in zip(annotations['caption'], annotations['image_id']):
             if not video_id in video_ids:
-                video_ids[video_id] = 0
+                video_ids.add(video_id)
                 i += 1
                 feature_to_captions[i] = []
                 if (not full_feature_data is None):

@@ -20,7 +20,7 @@ class CaptioningSolver(object):
                 - file_names: Image file names of shape (82783, )
                 - captions: Captions of shape (400000, 17) 
                 - image_idxs: Indices for mapping caption to image of shape (400000, ) 
-                - word_to_idx: Mapping dictionary from word to index 
+                - word_to_idx: Mapping di1ctionary from word to index 
             - val_data: validation data; for print out BLEU scores for each epoch.
         Optional Arguments:
             - n_epochs: The number of epochs to run for training.
@@ -140,7 +140,7 @@ class CaptioningSolver(object):
                         print "\nTrain loss at epoch %d & iteration %d (mini-batch): %.5f" %(e+1, i+1, l)
                         ground_truths = captions[image_idxs == image_idxs_batch[0]]
                         print len(image_idxs)
-                        print len(image_idxs_batch[0])
+                        print len(image_idxs_batch)
                         print len(captions[image_idxs == image_idxs_batch[0]])
                         print "ground_truths: ", ground_truths 
                         decoded = decode_captions(ground_truths, self.model.idx_to_word)
