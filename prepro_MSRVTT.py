@@ -10,6 +10,7 @@ import hickle
 import os
 import json
 import cPickle
+import config
 
 
 def _process_caption_data(caption_file, video_dir, video_exist, max_length):
@@ -135,11 +136,10 @@ def main():
     # if word occurs less than word_count_threshold in training dataset, the word index is special unknown token.
     word_count_threshold = 5
 
-    caption_file = 'data_MSRTT/annotations/train_val_videodatainfo.json'
-    video_dir = '/mnt/sdb1/yxing1/show_atten_tell/videos/'
+    video_dir = config.VIDEO_DIR
 
     # train split: 0:6512, val split: 6513:7009
-    train_val_dataset = _process_caption_data(caption_file='data_MSRVTT/annotations/train_val_videodatainfo.json',
+    train_val_dataset = _process_caption_data(caption_file=config.TRAIN_CAPTION_FILE,
                                               video_dir=video_dir,
                                               video_exist='dummy/',
                                               max_length=max_length)
@@ -147,7 +147,7 @@ def main():
     val_dataset = train_val_dataset[train_val_dataset['image_id'] > 6512].reset_index(drop=True)
 
     # test split 7010:9999
-    test_dataset = _process_caption_data(caption_file='data_MSRVTT/annotations/test_videodatainfo.json',
+    test_dataset = _process_caption_data(caption_file=config.TEST_CAPTION_FILE,
                                          video_dir=video_dir,
                                          video_exist='dummy/',
                                          max_length=max_length)

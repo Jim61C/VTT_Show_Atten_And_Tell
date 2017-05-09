@@ -109,3 +109,10 @@ model/
 
 # image
 image
+
+# plots
+plots/
+
+# config
+config.py
+
