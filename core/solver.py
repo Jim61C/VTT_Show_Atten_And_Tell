@@ -216,8 +216,6 @@ class CaptioningSolver(object):
 
                     # Plot original video frames
                     this_video = image_files[n]
-                    print "this_video: ", '/mnt/sdb1/yxing1/show_atten_tell/videos/' + this_video[this_video.rfind('/') + 1:]
-                    print "cv2.CAP_PROP_FRAME_COUNT:", cv2.CAP_PROP_FRAME_COUNT
                     try:
                         cap = cv2.VideoCapture(this_video)
                         frame_count = (int)(cap.get(cv2.CAP_PROP_FRAME_COUNT))
