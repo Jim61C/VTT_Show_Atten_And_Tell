@@ -136,10 +136,11 @@ def main():
     word_count_threshold = 5
 
     caption_file = 'data_MSRTT/annotations/train_val_videodatainfo.json'
+    video_dir = '/mnt/sdb1/yxing1/show_atten_tell/videos/'
 
     # train split: 0:6512, val split: 6513:7009
     train_val_dataset = _process_caption_data(caption_file='data_MSRVTT/annotations/train_val_videodatainfo.json',
-                                              video_dir='dummy/',
+                                              video_dir=video_dir,
                                               video_exist='dummy/',
                                               max_length=max_length)
     train_dataset = train_val_dataset[train_val_dataset['image_id'] <= 6512]
@@ -147,7 +148,7 @@ def main():
 
     # test split 7010:9999
     test_dataset = _process_caption_data(caption_file='data_MSRVTT/annotations/test_videodatainfo.json',
-                                         video_dir='dummy/',
+                                         video_dir=video_dir,
                                          video_exist='dummy/',
                                          max_length=max_length)
     print 'Finished processing caption data'

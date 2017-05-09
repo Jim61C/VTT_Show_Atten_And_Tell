@@ -10,7 +10,6 @@ from utils import *
 from bleu import evaluate
 
 import cv2
-from cv2 import cv
 
 
 class CaptioningSolver(object):
@@ -217,15 +216,15 @@ class CaptioningSolver(object):
 
                     # Plot original video frames
                     this_video = image_files[n]
-                    print "this_video: ", this_video
-                    print "cv.CV_CAP_PROP_FRAME_COUNT:", cv.CV_CAP_PROP_FRAME_COUNT
+                    print "this_video: ", '/mnt/sdb1/yxing1/show_atten_tell/videos/' + this_video[this_video.rfind('/') + 1:]
+                    print "cv2.CAP_PROP_FRAME_COUNT:", cv2.CAP_PROP_FRAME_COUNT
                     try:
                         cap = cv2.VideoCapture(this_video)
-                        frame_count = (int)(cap.get(cv.CV_CAP_PROP_FRAME_COUNT))
+                        frame_count = (int)(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                         frames_selected = np.random.choice(frame_count, 10)
                         # randomly pick 10 frames
                         for frame_pos in frames_selected:
-                            cap.set(cv.CV_CAP_PROP_POS_FRAMES, frame_pos)
+                            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_pos)
                             _, img = cap.read()
                             img = cv2.resize(img, (256, 256)) # inception original size is 229, 229
                             # change BGR to RGB 

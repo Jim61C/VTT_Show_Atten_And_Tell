@@ -20,7 +20,7 @@ plt.rcParams['image.cmap'] = 'gray'
 def main():
 	# load val dataset to print out bleu scores every epoch
 	val_data = load_coco_data(data_path='./data_MSRVTT', split='val')
-	test_data = load_coco_data(data_path='./data_MSRVTT', split='test')
+	# test_data = load_coco_data(data_path='./data_MSRVTT', split='test')
 
 	with open('./data_MSRVTT/train/word_to_idx.pkl') as f:
 		word_to_idx = pickle.load(f)
@@ -37,15 +37,15 @@ def main():
 
 	# Test, save produced captions
 	solver.test(val_data, split='val', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots/val')
-	tf.get_variable_scope().reuse_variables()
-	solver.test(test_data, split='test', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots/test')
+	# tf.get_variable_scope().reuse_variables()
+	# solver.test(test_data, split='test', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots/test')
 
 	# Evaluation
 	print "Evaluation, validation set..."
 	evaluate(data_path='./data_MSRVTT', split='val')
 
-	print "Evaluation, test set..."
-	evaluate(data_path='./data_MSRVTT', split='test')
+	# print "Evaluation, test set..."
+	# evaluate(data_path='./data_MSRVTT', split='test')
 
 
 if __name__ == "__main__":
