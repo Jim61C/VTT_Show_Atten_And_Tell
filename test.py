@@ -1,3 +1,7 @@
+import matplotlib
+# matplotlib.use('TkAgg')  # for visualisation + writing
+# matplotlib.use('WX')  # for visualisation + writing
+matplotlib.use('Agg')  # for just writing
 import matplotlib.pyplot as plt
 import cPickle as pickle
 import tensorflow as tf
@@ -5,6 +9,7 @@ from core.solver import CaptioningSolver
 from core.model import CaptionGenerator
 from core.utils import load_coco_data
 from core.bleu import evaluate
+
 
 plt.rcParams['figure.figsize'] = (8.0, 6.0)  # set default size of plots
 plt.rcParams['image.interpolation'] = 'nearest'
@@ -31,9 +36,9 @@ def main():
 									 print_bleu=True, log_path='log/')
 
 	# Test, save produced captions
-	solver.test(val_data, split='val', attention_visualization=False, save_sampled_captions = True)
+	solver.test(val_data, split='val', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots/val')
 	tf.get_variable_scope().reuse_variables()
-	solver.test(test_data, split='test', attention_visualization=False, save_sampled_captions = True)
+	solver.test(test_data, split='test', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots/test')
 
 	# Evaluation
 	print "Evaluation, validation set..."

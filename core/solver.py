@@ -9,6 +9,9 @@ from scipy import ndimage
 from utils import *
 from bleu import evaluate
 
+import cv2
+from cv2 import cv
+
 
 class CaptioningSolver(object):
     def __init__(self, model, data, val_data, **kwargs):
@@ -176,7 +179,7 @@ class CaptioningSolver(object):
                     print "model-%s saved." %(e+1)
             
          
-    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True):
+    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_folder = 'plots'):
         '''
         Args:
             - data: dictionary with the following keys:
@@ -189,6 +192,8 @@ class CaptioningSolver(object):
             - attention_visualization: If True, visualize attention weights with images for each sampled word. (ipthon notebook)
             - save_sampled_captions: If True, save sampled captions to pkl file for computing BLEU scores.
         '''
+        if (not os.path.exists(save_folder)):
+            os.makedirs(save_folder)
 
         features = data['features']
 
@@ -206,28 +211,46 @@ class CaptioningSolver(object):
             decoded = decode_captions(sam_cap, self.model.idx_to_word)
 
             if attention_visualization:
+                # just check 10 random samples
                 for n in range(10):
                     print "Sampled Caption: %s" %decoded[n]
 
-                    # Plot original image
-                    img = ndimage.imread(image_files[n])
-                    plt.subplot(4, 5, 1)
-                    plt.imshow(img)
-                    plt.axis('off')
+                    # Plot original video frames
+                    this_video = image_files[n]
+                    print "this_video: ", this_video
+                    print "cv.CV_CAP_PROP_FRAME_COUNT:", cv.CV_CAP_PROP_FRAME_COUNT
+                    try:
+                        cap = cv2.VideoCapture(this_video)
+                        frame_count = (int)(cap.get(cv.CV_CAP_PROP_FRAME_COUNT))
+                        frames_selected = np.random.choice(frame_count, 10)
+                        # randomly pick 10 frames
+                        for frame_pos in frames_selected:
+                            cap.set(cv.CV_CAP_PROP_POS_FRAMES, frame_pos)
+                            _, img = cap.read()
+                            img = cv2.resize(img, (256, 256)) # inception original size is 229, 229
+                            # change BGR to RGB 
+                            img = img[...,::-1]
+                            plt.subplot(4, 5, 1)
+                            plt.imshow(img)
+                            plt.axis('off')
 
-                    # Plot images with attention weights 
-                    words = decoded[n].split(" ")
-                    for t in range(len(words)):
-                        if t > 18:
-                            break
-                        plt.subplot(4, 5, t+2)
-                        plt.text(0, 1, '%s(%.2f)'%(words[t], bts[n,t]) , color='black', backgroundcolor='white', fontsize=8)
-                        plt.imshow(img)
-                        alp_curr = alps[n,t,:].reshape(14,14)
-                        alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=16, sigma=20)
-                        plt.imshow(alp_img, alpha=0.85)
-                        plt.axis('off')
-                    plt.show()
+                            # Plot images with attention weights 
+                            words = decoded[n].split(" ")
+                            for t in range(len(words)):
+                                if t > 18:
+                                    break
+                                plt.subplot(4, 5, t+2)
+                                plt.text(0, 1, '%s(%.2f)'%(words[t], bts[n,t]) , color='black', backgroundcolor='white', fontsize=8)
+                                plt.imshow(img)
+                                alp_curr = alps[n,t,:].reshape(8,8)
+                                alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
+                                plt.imshow(alp_img, alpha=0.85)
+                                plt.axis('off')
+                            # plt.show()
+                            plt.savefig('{}/sample{}_frame{}_word{}.png'.format(save_folder, n, frame_pos, t))
+                            plt.clf()
+                    except:
+                        print "video ", this_video, " unreadable"
 
             if save_sampled_captions:
                 all_sam_cap = np.ndarray((features.shape[0], 20))
