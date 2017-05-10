@@ -14,8 +14,8 @@ def main():
                     dim_hidden=1024, n_time_step=16, prev2out=True,
                     ctx2out=False, alpha_c=0, selector=False, dropout=True)
 
-    solver = CaptioningSolver(model, data, val_data, n_epochs=40, batch_size=512, update_rule='adam',
-                    learning_rate=0.001, print_every=30, save_every=1, image_path='./image/',
+    solver = CaptioningSolver(model, data, val_data, n_epochs=40, batch_size=256, update_rule='adam',
+                    learning_rate=0.001, print_every=50, save_every=1, image_path='./image/',
                     pretrained_model='../show-attend-and-tell-MSRVTT_scratch/model/lstm_MSRVTT_from_scratch/model-6', model_path='model/show_and_tell/lstm_gan/', test_model='../show-attend-and-tell-MSRVTT_scratch/model/lstm_MSRVTT_from_scratch/model-6',
                     print_bleu=True, log_path='log/', reset_embedding=False, use_gan=True)
 
