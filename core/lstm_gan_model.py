@@ -73,7 +73,7 @@ class CaptionGenerator(object):
         with tf.variable_scope('word_embedding', reuse=reuse):
             w = tf.get_variable('w', [self.V, self.M], initializer=self.emb_initializer)
             x = tf.nn.embedding_lookup(w, inputs, name='word_vector')  # (N, T, M) or (N, M)
-            return x
+            return x, w
 
     def _project_features(self, features):
         with tf.variable_scope('project_features'):
@@ -142,9 +142,10 @@ class CaptionGenerator(object):
         return tf.random_normal(shape=size, stddev=xavier_stddev)
 
 
-    def build_vtt_model(self, max_len=20):
+    def build_vtt_model(self, max_len=20, mode='train'):
         features = self.features
-        captions = self.captions[:, :] 
+        captions = self.captions
+        mask = tf.to_float(tf.not_equal(captions[:, 1:], self._null))
 
         # batch normalize feature vectors
         features = self._batch_norm(features, mode='test', name='conv_features')
@@ -157,14 +158,34 @@ class CaptionGenerator(object):
         beta_list = []
         lstm_cell = tf.contrib.rnn.BasicLSTMCell(num_units=self.H)
 
+        # LSTM loss
+        # input features are ground truth text embeddings [0..T], captions are [1..T+1]
+        lstm_loss = 0.0
+        '''
+        if mode == 'train':
+            captions_in = captions[:, :self.T]      
+            captions_out = captions[:, 1:]  
+            mask = tf.to_float(tf.not_equal(captions_out, self._null))
+            x_gt, _ = self._word_embedding(inputs=captions_in)
+            for t in range(self.T):
+                with tf.variable_scope('lstm', reuse=(t!=0)):
+                    _, (c, h) = lstm_cell(inputs=x_gt[:,t,:], state=[c, h])
+
+                logits_gt = self._decode_lstm(x_gt[:,t,:], h, dropout=self.dropout, reuse=(t!=0))
+                lstm_loss += tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits_gt, labels=captions_out[:, t]) * mask[:, t])
+            lstm_loss /= tf.to_float(tf.shape(features)[0])
+        '''
+
+        # GAN loss
+        # input is the sentence that LSTM generated (in test mode)
         xs = []
         for t in range(max_len):
             if t == 0:
-                x = self._word_embedding(inputs=tf.fill([tf.shape(features)[0]], self._start))
+                x, w = self._word_embedding(inputs=tf.fill([tf.shape(features)[0]], self._start))
+                xs.append(x)
             else:
-                x = self._word_embedding(inputs=sampled_word, reuse=True)  
-            # TODO:: batch
-            xs.append(x)
+                x, _ = self._word_embedding(inputs=sampled_word, reuse=True)
+                xs.append(tf.matmul(probs, w))
 
             """
             context, alpha = self._attention_layer(features, features_proj, h, reuse=(t!=0))
@@ -178,11 +199,17 @@ class CaptionGenerator(object):
                 _, (c, h) = lstm_cell(inputs=x, state=[c, h])
 
             logits = self._decode_lstm(x, h, reuse=(t!=0))
+            probs = tf.nn.softmax(logits)
             sampled_word = tf.argmax(logits, 1)       
             sampled_word_list.append(sampled_word)  
 
-        xs = tf.reshape(tf.transpose(xs, perm = (1, 0, 2)), shape = (-1, max_len * self.M))
+            if t<max_len-1:
+                #logits_gt = self._decode_lstm(x_gt[:,t,:], h, dropout=self.dropout, reuse=(t!=0))
+                lstm_loss += tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=captions[:, t+1]) * mask[:, t])
+        
+        lstm_loss /= tf.to_float(tf.shape(features)[0])
 
+        xs = tf.reshape(tf.transpose(xs, perm = (1, 0, 2)), shape = (-1, max_len * self.M))
 
         alphas = [] #tf.transpose(tf.stack(alpha_list), (1, 0, 2))     # (N, T, L)
         betas = [] #tf.transpose(tf.squeeze(beta_list), (1, 0))    # (N, T)
@@ -192,19 +219,13 @@ class CaptionGenerator(object):
         image_feature = tf.squeeze(features)                             # (128, 2048)
         generated_input = tf.concat([xs, image_feature], 1, name = "generated_input")
 
-
-        input_cap = self._word_embedding(inputs=captions, reuse=True)  
-        #print input_cap.shape
+        input_cap, _ = self._word_embedding(inputs=captions, reuse=True)  
         input_cap = tf.reshape(input_cap, shape = (-1, max_len * self.M))             # (128, 8704)
-        #print input_cap.shape
-        #exit(1)
         groundtruth_input = tf.concat([input_cap, image_feature], 1, name = "gt_input")   # (128, 8704+2048)
 
         # GAN loss
-        # variables
         X_dim = groundtruth_input.get_shape().as_list()[1] #[17*512], #words * #embed, TODO::  + 2048  #mnist.train.images.shape[1]
         h_dim = 128
-        #print "X_dim = ", X_dim
 
         with tf.variable_scope("Discriminator_network"):
             
@@ -236,4 +257,4 @@ class CaptionGenerator(object):
         """ Generator loss """
         G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
 
-        return alphas, betas, sampled_captions, D_loss, G_loss 
+        return alphas, betas, sampled_captions, D_loss, G_loss, lstm_loss 
