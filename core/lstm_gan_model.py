@@ -56,8 +56,8 @@ class CaptionGenerator(object):
         self.features = tf.placeholder(tf.float32, [None, self.L, self.D])
         self.captions = tf.placeholder(tf.int32, [None, self.T + 1])
     
-    def _get_initial_lstm(self, features):
-        with tf.variable_scope('initial_lstm'):
+    def _get_initial_lstm(self, features, reuse=False):
+        with tf.variable_scope('initial_lstm', reuse=reuse):
             features_mean = tf.reduce_mean(features, 1)
 
             w_h = tf.get_variable('w_h', [self.D, self.H], initializer=self.weight_initializer)
@@ -75,8 +75,8 @@ class CaptionGenerator(object):
             x = tf.nn.embedding_lookup(w, inputs, name='word_vector')  # (N, T, M) or (N, M)
             return x, w
 
-    def _project_features(self, features):
-        with tf.variable_scope('project_features'):
+    def _project_features(self, features, reuse=False):
+        with tf.variable_scope('project_features', reuse=reuse):
             w = tf.get_variable('w', [self.D, self.D], initializer=self.weight_initializer)
             features_flat = tf.reshape(features, [-1, self.D])
             features_proj = tf.matmul(features_flat, w)  
@@ -136,10 +136,42 @@ class CaptionGenerator(object):
                                             updates_collections=None,
                                             scope=(name+'batch_norm'))
 
-    def xavier_init(self, size):
-        in_dim = size[0]
-        xavier_stddev = 1. / tf.sqrt(in_dim / 2.)
-        return tf.random_normal(shape=size, stddev=xavier_stddev)
+
+    def build_lstm_model(self, max_len=20):
+        features = self.features
+        captions = self.captions
+        batch_size = tf.shape(features)[0]
+
+        captions_in = captions[:, :self.T]      
+        captions_out = captions[:, 1:]  
+        mask = tf.to_float(tf.not_equal(captions_out, self._null))
+        
+        
+        # batch normalize feature vectors
+        features = self._batch_norm(features, mode='train', name='conv_features')
+        
+        c, h = self._get_initial_lstm(features=features, reuse=True)
+        x, _ = self._word_embedding(inputs=captions_in, reuse=True)
+        features_proj = self._project_features(features=features, reuse=True)
+
+        loss = 0.0
+        alpha_list = []
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(num_units=self.H)
+
+        for t in range(self.T):
+            #context, alpha = self._attention_layer(features, features_proj, h, reuse=(t!=0))
+            #alpha_list.append(alpha)
+            """
+            if self.selector:
+                context, beta = self._selector(context, h, reuse=(t!=0)) 
+            """
+            with tf.variable_scope('lstm', reuse=True):
+                _, (c, h) = lstm_cell(inputs=x[:,t,:], state=[c, h])
+
+            logits = self._decode_lstm(x[:,t,:], h, dropout=self.dropout, reuse=True)
+            loss += tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=captions_out[:, t]) * mask[:, t])
+
+        return loss / tf.to_float(batch_size)
 
 
     def build_vtt_model(self, max_len=20, mode='train'):
@@ -148,7 +180,7 @@ class CaptionGenerator(object):
         mask = tf.to_float(tf.not_equal(captions[:, 1:], self._null))
 
         # batch normalize feature vectors
-        features = self._batch_norm(features, mode='test', name='conv_features')
+        features = self._batch_norm(features, mode=mode, name='conv_features')
         
         c, h = self._get_initial_lstm(features=features)
         features_proj = self._project_features(features=features)
@@ -160,8 +192,8 @@ class CaptionGenerator(object):
 
         # LSTM loss
         # input features are ground truth text embeddings [0..T], captions are [1..T+1]
-        lstm_loss = 0.0
         '''
+        lstm_loss = 0.0
         if mode == 'train':
             captions_in = captions[:, :self.T]      
             captions_out = captions[:, 1:]  
@@ -187,6 +219,8 @@ class CaptionGenerator(object):
                 x, _ = self._word_embedding(inputs=sampled_word, reuse=True)
                 xs.append(tf.matmul(probs, w))
 
+            #x_gt = self._word_embedding(inputs=captions[:, t], reuse=True))
+
             """
             context, alpha = self._attention_layer(features, features_proj, h, reuse=(t!=0))
             alpha_list.append(alpha)
@@ -203,11 +237,11 @@ class CaptionGenerator(object):
             sampled_word = tf.argmax(logits, 1)       
             sampled_word_list.append(sampled_word)  
 
-            if t<max_len-1:
-                #logits_gt = self._decode_lstm(x_gt[:,t,:], h, dropout=self.dropout, reuse=(t!=0))
-                lstm_loss += tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=captions[:, t+1]) * mask[:, t])
+            #if t<max_len-1:
+            #    logits_gt = self._decode_lstm(x_gt, h, dropout=self.dropout, reuse=(t!=0))
+            #    lstm_loss += tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits_gt, labels=captions[:, t+1]) * mask[:, t])
         
-        lstm_loss /= tf.to_float(tf.shape(features)[0])
+        #lstm_loss /= tf.to_float(tf.shape(features)[0])
 
         xs = tf.reshape(tf.transpose(xs, perm = (1, 0, 2)), shape = (-1, max_len * self.M))
 
@@ -257,4 +291,4 @@ class CaptionGenerator(object):
         """ Generator loss """
         G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
 
-        return alphas, betas, sampled_captions, D_loss, G_loss, lstm_loss 
+        return alphas, betas, sampled_captions, D_loss, G_loss, D_real, D_fake
