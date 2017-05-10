@@ -1,15 +1,14 @@
+import skvideo.io
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import skimage.transform
 import numpy as np
 import time
-import os 
+import os
 import cPickle as pickle
 from scipy import ndimage
 from utils import *
 from bleu import evaluate
-
-import cv2
 
 
 class CaptioningSolver(object):
@@ -20,9 +19,9 @@ class CaptioningSolver(object):
             - data: Training data; dictionary with the following keys:
                 - features: Feature vectors of shape (82783, 196, 512)
                 - file_names: Image file names of shape (82783, )
-                - captions: Captions of shape (400000, 17) 
-                - image_idxs: Indices for mapping caption to image of shape (400000, ) 
-                - word_to_idx: Mapping di1ctionary from word to index 
+                - captions: Captions of shape (400000, 17)
+                - image_idxs: Indices for mapping caption to image of shape (400000, )
+                - word_to_idx: Mapping di1ctionary from word to index
             - val_data: validation data; for print out BLEU scores for each epoch.
         Optional Arguments:
             - n_epochs: The number of epochs to run for training.
@@ -31,9 +30,9 @@ class CaptioningSolver(object):
             - learning_rate: Learning rate; default value is 0.01.
             - print_every: Integer; training losses will be printed every print_every iterations.
             - save_every: Integer; model variables will be saved every save_every epoch.
-            - pretrained_model: String; pretrained model path 
-            - model_path: String; model path for saving 
-            - test_model: String; model path for test 
+            - pretrained_model: String; pretrained model path
+            - model_path: String; model path for saving
+            - test_model: String; model path for test
         """
 
         self.model = model
@@ -57,7 +56,7 @@ class CaptioningSolver(object):
         elif self.update_rule == 'momentum':
             self.optimizer = tf.train.MomentumOptimizer
         elif self.update_rule == 'rmsprop':
-            self.optimizer = tf.train.RMSPropOptimizer   
+            self.optimizer = tf.train.RMSPropOptimizer
 
         if not os.path.exists(self.model_path):
             os.makedirs(self.model_path)
@@ -87,21 +86,21 @@ class CaptioningSolver(object):
             grads = tf.gradients(loss, tf.trainable_variables())
             grads_and_vars = list(zip(grads, tf.trainable_variables()))
             train_op = optimizer.apply_gradients(grads_and_vars=grads_and_vars)
-           
-        # summary op   
+
+        # summary op
         tf.summary.scalar('batch_loss', loss)
         for var in tf.trainable_variables():
             tf.summary.histogram(var.op.name, var)
         for grad, var in grads_and_vars:
             tf.summary.histogram(var.op.name+'/gradient', grad)
-        
-        summary_op = tf.summary.merge_all() 
+
+        summary_op = tf.summary.merge_all()
 
         print "The number of epoch: %d" %self.n_epochs
         print "Data size: %d" %n_examples
         print "Batch size: %d" %self.batch_size
         print "Iterations per epoch: %d" %n_iters_per_epoch
-        
+
         # config = tf.ConfigProto(allow_soft_placement = True, log_device_placement=True)
         config = tf.ConfigProto(allow_soft_placement = True)
         #config.gpu_options.per_process_gpu_memory_fraction=0.9
@@ -144,10 +143,10 @@ class CaptioningSolver(object):
                         print len(image_idxs)
                         print len(image_idxs_batch)
                         print len(captions[image_idxs == image_idxs_batch[0]])
-                        print "ground_truths: ", ground_truths 
+                        print "ground_truths: ", ground_truths
                         decoded = decode_captions(ground_truths, self.model.idx_to_word)
                         for j, gt in enumerate(decoded):
-                            print "Ground truth %d: %s" %(j+1, gt)                    
+                            print "Ground truth %d: %s" %(j+1, gt)
                         gen_caps = sess.run(generated_captions, feed_dict)
                         decoded = decode_captions(gen_caps, self.model.idx_to_word)
                         print "Generated caption: %s\n" %decoded[0]
@@ -157,16 +156,16 @@ class CaptioningSolver(object):
                 print "Elapsed time: ", time.time() - start_t
                 prev_loss = curr_loss
                 curr_loss = 0
-                
+
                 # print out BLEU scores and file write
                 if self.print_bleu:
                     all_gen_cap = np.ndarray((val_features.shape[0], 20))
                     for i in range(n_iters_val):
                         features_batch = val_features[i*self.batch_size:(i+1)*self.batch_size]
                         feed_dict = {self.model.features: features_batch}
-                        gen_cap = sess.run(generated_captions, feed_dict=feed_dict)  
+                        gen_cap = sess.run(generated_captions, feed_dict=feed_dict)
                         all_gen_cap[i*self.batch_size:(i+1)*self.batch_size] = gen_cap
-                    
+
                     all_decoded = decode_captions(all_gen_cap, self.model.idx_to_word)
                     save_pickle(all_decoded, "./data_MSRVTT/val/val.candidate.captions.pkl")
                     scores = evaluate(data_path='./data_MSRVTT', split='val', get_scores=True)
@@ -176,16 +175,16 @@ class CaptioningSolver(object):
                 if (e+1) % self.save_every == 0:
                     saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e+1)
                     print "model-%s saved." %(e+1)
-            
-         
-    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_folder = 'plots'):
+
+
+    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False):
         '''
         Args:
             - data: dictionary with the following keys:
             - features: Feature vectors of shape (5000, 196, 512)
             - file_names: Image file names of shape (5000, )
-            - captions: Captions of shape (24210, 17) 
-            - image_idxs: Indices for mapping caption to image of shape (24210, ) 
+            - captions: Captions of shape (24210, 17)
+            - image_idxs: Indices for mapping caption to image of shape (24210, )
             - features_to_captions: Mapping feature to captions (5000, 4~5)
             - split: 'train', 'val' or 'test'
             - attention_visualization: If True, visualize attention weights with images for each sampled word. (ipthon notebook)
@@ -198,7 +197,7 @@ class CaptioningSolver(object):
 
         # build a graph to sample captions
         alphas, betas, sampled_captions = self.model.build_sampler(max_len=20)    # (N, max_len, L), (N, max_len)
-        
+
         config = tf.ConfigProto(allow_soft_placement=True)
         config.gpu_options.allow_growth = True
         with tf.Session(config=config) as sess:
@@ -216,22 +215,53 @@ class CaptioningSolver(object):
 
                     # Plot original video frames
                     this_video = image_files[n]
-                    try:
-                        cap = cv2.VideoCapture(this_video)
-                        frame_count = (int)(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                        frames_selected = np.random.choice(frame_count, 10)
-                        # randomly pick 10 frames
+                    # try:
+                    videodata = skvideo.io.vread(str(this_video))
+                    frame_count = videodata.shape[0]
+                    frames_selected = np.arange(0, frame_count, 30) # every couple of frames
+
+                    if (dynamic_image):
+                        frame_weight = 1.0 / len(frames_selected)
+                        
+                        # get average image across frames
+                        img = videodata[0]
+                        img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
+                        avg_image = np.zeros(img.shape)
                         for frame_pos in frames_selected:
-                            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_pos)
-                            _, img = cap.read()
-                            img = cv2.resize(img, (256, 256)) # inception original size is 229, 229
-                            # change BGR to RGB 
-                            img = img[...,::-1]
+                            img = videodata[frame_pos]
+                            img = skimage.transform.resize(img, (255, 255))
+                            avg_image = avg_image + frame_weight * img
+
+                        plt.subplot(4, 5, 1)
+                        plt.imshow(avg_image)
+                        plt.axis('off')
+
+                        # Plot images with attention weights
+                        words = decoded[n].split(" ")
+                        for t in range(len(words)):
+                            if t > 18:
+                                break
+                            plt.subplot(4, 5, t+2)
+                            plt.text(0, 1, '%s(%.2f)'%(words[t], bts[n,t]) , color='black', backgroundcolor='white', fontsize=8)
+                            plt.imshow(avg_image)
+                            alp_curr = alps[n,t,:].reshape(8,8)
+                            alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
+                            plt.imshow(alp_img, alpha=0.85)
+                            plt.axis('off')
+                        # plt.show()
+                        plt.savefig('{}/sample{}.png'.format(save_folder, n))
+                        plt.clf()
+
+                    else:
+                        for frame_pos in frames_selected:
+                            print "plot frame:", frame_pos, "/", frame_count
+                            img = videodata[frame_pos]
+                            img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
                             plt.subplot(4, 5, 1)
                             plt.imshow(img)
                             plt.axis('off')
 
-                            # Plot images with attention weights 
+                            # Plot images with attention weights
                             words = decoded[n].split(" ")
                             for t in range(len(words)):
                                 if t > 18:
@@ -244,10 +274,10 @@ class CaptioningSolver(object):
                                 plt.imshow(alp_img, alpha=0.85)
                                 plt.axis('off')
                             # plt.show()
-                            plt.savefig('{}/sample{}_frame{}_word{}.png'.format(save_folder, n, frame_pos, t))
+                            plt.savefig('{}/sample{}_frame{}.png'.format(save_folder, n, frame_pos))
                             plt.clf()
-                    except:
-                        print "video ", this_video, " unreadable"
+                    # except:
+                    #     print "video ", this_video, " unreadable"
 
             if save_sampled_captions:
                 all_sam_cap = np.ndarray((features.shape[0], 20))
@@ -255,6 +285,6 @@ class CaptioningSolver(object):
                 for i in range(num_iter):
                     features_batch = features[i*self.batch_size:(i+1)*self.batch_size]
                     feed_dict = { self.model.features: features_batch }
-                    all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)  
+                    all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
                 save_pickle(all_decoded, "./data_MSRVTT/%s/%s.candidate.captions.pkl" %(split,split))
