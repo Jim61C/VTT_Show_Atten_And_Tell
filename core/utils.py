@@ -5,13 +5,14 @@ import time
 import os
 
 
-def load_coco_data(data_path='./data', split='train'):
+def load_coco_data(data_path='./data', split='train', use_tag = False):
     data_path = os.path.join(data_path, split)
     start_t = time.time()
     data = {}
   
     data['features'] = np.asarray(hickle.load(os.path.join(data_path, '%s.features.hkl' %split)))
-    data['tags'] = hickle.load(os.path.join(data_path, '%s.tag_vectors.hkl' %split))
+    if use_tag:
+        data['tags'] = hickle.load(os.path.join(data_path, '%s.tag_vectors.hkl' %split))
     with open(os.path.join(data_path, '%s.file.names.pkl' %split), 'rb') as f:
         data['file_names'] = pickle.load(f)   
     with open(os.path.join(data_path, '%s.captions.pkl' %split), 'rb') as f:

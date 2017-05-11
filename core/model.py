@@ -19,7 +19,7 @@ import numpy as np
 
 class CaptionGenerator(object):
     def __init__(self, word_to_idx, dim_feature=[196, 512], dim_embed=512, dim_hidden=1024, n_time_step=16, 
-                  prev2out=True, ctx2out=True, alpha_c=0.0, selector=True, dropout=True, device_id = '/gpu:0'):
+                  prev2out=True, ctx2out=True, alpha_c=0.0, selector=True, dropout=True, use_tag=False, device_id = '/gpu:0'):
         """
         Args:
             word_to_idx: word-to-index mapping dictionary.
@@ -58,7 +58,9 @@ class CaptionGenerator(object):
         # Place holder for features and captions
         self.features = tf.placeholder(tf.float32, [None, self.L, self.D])
         self.captions = tf.placeholder(tf.int32, [None, self.T + 1])
-        self.tags = tf.placeholder(tf.float32, [None, self.V]) # binary tensor (list of binary tag vectors)
+        self.use_tag = use_tag
+        if self.use_tag:
+            self.tags = tf.placeholder(tf.float32, [None, self.V]) # binary tensor (list of binary tag vectors)
 
     def _get_initial_lstm(self, features):
         with tf.variable_scope('initial_lstm'):
@@ -166,7 +168,8 @@ class CaptionGenerator(object):
         
         c, h = self._get_initial_lstm(features=features)
         x, w = self._word_embedding(inputs=captions_in)
-        tag_embedding = self._tag_embedding(inputs=self.tags, embedding_w = w)
+        if self.use_tag:
+            tag_embedding = self._tag_embedding(inputs=self.tags, embedding_w = w)
         features_proj = self._project_features(features=features)
 
         loss = 0.0
@@ -180,7 +183,11 @@ class CaptionGenerator(object):
             if self.selector:
                 context, beta = self._selector(context, h, reuse=(t!=0)) 
             
-            lstm_input = tf.add(x[:,t,:], tag_embedding, name = "input")
+            if self.use_tag:
+                lstm_input = tf.add(x[:,t,:], tag_embedding, name = "input")
+            else:
+                lstm_input = x[:,t,:]
+            
             with tf.variable_scope('lstm', reuse=(t!=0)):
                 _, (c, h) = lstm_cell(inputs=tf.concat(axis=1, values=[lstm_input, context]), state=[c, h])
 
@@ -212,7 +219,8 @@ class CaptionGenerator(object):
         for t in range(max_len):
             if t == 0:
                 x, w = self._word_embedding(inputs=tf.fill([tf.shape(features)[0]], self._start))
-                tag_embedding = self._tag_embedding(inputs=self.tags, embedding_w = w)
+                if self.use_tag:
+                    tag_embedding = self._tag_embedding(inputs=self.tags, embedding_w = w)
             else:
                 x, _ = self._word_embedding(inputs=sampled_word, reuse=True)  
           
@@ -222,8 +230,11 @@ class CaptionGenerator(object):
             if self.selector:
                 context, beta = self._selector(context, h, reuse=(t!=0)) 
                 beta_list.append(beta)
-            
-            lstm_input = tf.add(x, tag_embedding, name = "input")
+            if self.use_tag:
+                lstm_input = tf.add(x, tag_embedding, name = "input")
+            else:
+                lstm_input = x
+                
             with tf.variable_scope('lstm', reuse=(t!=0)):
                 _, (c, h) = lstm_cell(inputs=tf.concat(axis=1, values=[lstm_input, context]), state=[c, h])
 
