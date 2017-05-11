@@ -52,9 +52,12 @@ class CaptioningSolver(object):
         self.test_model = kwargs.pop('test_model', './model/lstm/model-1')
         self.reset_embedding = kwargs.pop('reset_embedding', False)
         self.use_gan = kwargs.pop('use_gan', False)
-        self.G_learning_rate = self.learning_rate*0.01
-        self.D_learning_rate = self.learning_rate*0.01
-        self.LSTM_learning_rate = self.learning_rate*0.000001
+        self.G_learning_rate = tf.placeholder(tf.float32, shape=[]) #self.learning_rate*0.01
+        self.D_learning_rate = tf.placeholder(tf.float32, shape=[]) #self.learning_rate*0.01
+        self.LSTM_learning_rate = tf.placeholder(tf.float32, shape=[]) #self.learning_rate*0.000001
+        self.lr_G = self.learning_rate*0.005
+        self.lr_D = self.learning_rate*0.01
+        self.lr_LSTM = 0 #self.learning_rate*0.0000001
 
         # set an optimizer by update rule
         if self.update_rule == 'adam':
@@ -375,7 +378,6 @@ class CaptioningSolver(object):
         print "Validation data size: %d" %n_val_examples
         print "Validation terations per epoch: %d" %n_iters_val
 
-
         config = tf.ConfigProto(allow_soft_placement = True)
         #config.gpu_options.per_process_gpu_memory_fraction=0.9
         config.gpu_options.allow_growth = True
@@ -424,7 +426,7 @@ class CaptioningSolver(object):
                     captions_batch = captions[i*self.batch_size:(i+1)*self.batch_size]
                     image_idxs_batch = image_idxs[i*self.batch_size:(i+1)*self.batch_size]
                     features_batch = features[image_idxs_batch]
-                    feed_dict = {self.model.features: features_batch, self.model.captions: captions_batch}
+                    feed_dict = {self.model.features: features_batch, self.model.captions: captions_batch, self.G_learning_rate: self.lr_G, self.D_learning_rate: self.lr_D, self.LSTM_learning_rate: self.lr_LSTM}
                     #_, D_l, _, G_l, gen_caps, _, LSTM_l = sess.run([D_train_op, D_loss, G_train_op, G_loss, generated_captions, LSTM_train_op, LSTM_loss], feed_dict)
                     _, LSTM_l = sess.run([LSTM_train_op, LSTM_loss], feed_dict)
                     _, D_l, _, G_l, gen_caps, d_real, d_fake  = sess.run([D_train_op, D_loss, G_train_op, G_loss, generated_captions, D_real, D_fake], feed_dict)
@@ -442,7 +444,7 @@ class CaptioningSolver(object):
 
                     if (i+1) % self.print_every == 0:
                         print "\nTrain loss at epoch %d & iteration %d mini-batch (G): %.5f (D): %.5f (LSTM): %.5f" %(e+1, i+1, G_l, D_l, LSTM_l)
-                        
+
                         print "Video sample: ", file_names[image_idxs_batch[0]]
                         ground_truths = captions[image_idxs == image_idxs_batch[0]]
                         decoded_gt = decode_captions(ground_truths, self.model.idx_to_word)
@@ -457,17 +459,17 @@ class CaptioningSolver(object):
                         decoded_gen = decode_captions(gen_caps, self.model.idx_to_word)
                         print "Generated caption: %s\n" % decoded_gen[0]
                         print ""
-
-                        '''
+                        
                         # adaptive learning rate
-                        self.G_learning_rate = self.G_learning_rate * self.sigmoid(np.mean(d_real),-.5,15)
-                        self.D_learning_rate = self.D_learning_rate * self.sigmoid(np.mean(d_fake),-.5,15)
-                        print "G_learning_rate : ", self.G_learning_rate 
-                        print "D_learning_rate : ", self.D_learning_rate 
-                        print "LSTM_learning_rate : ", self.LSTM_learning_rate 
+                        self.lr_G = self.lr_G * self.sigmoid(np.mean(d_real),-.5,15)
+                        self.lr_D = self.lr_D * self.sigmoid(np.mean(d_fake),-.5,15)
+                        self.lr_LSTM = self.lr_LSTM
+                        print "G_learning_rate : ", self.lr_G
+                        print "D_learning_rate : ", self.lr_D
+                        print "LSTM_learning_rate : ", self.lr_LSTM
                         print ""
-                        '''
-                        sys.stdout.flush()                    
+                        
+                        sys.stdout.flush()
 
                 print ""
                 print "Previous epoch loss: ", prev_loss
@@ -502,17 +504,15 @@ class CaptioningSolver(object):
                     #val_image_idxs = val_image_idxs[rand_idxs]
                     #val_features = val_features[rand_idxs]
                     for i in range(n_iters_val):
-                        #val_captions_batch = val_captions[i*self.batch_size : (i+1)*self.batch_size] #min((i+1)*self.batch_size, n_val_examples)]
-                        #val_image_idxs_batch = val_image_idxs[i*self.batch_size: (i+1)*self.batch_size] #min((i+1)*self.batch_size, n_val_examples)] #min((i+1)*self.batch_size, n_val_examples)]
-                        val_file_idxs_batch = val_file_idxs[i*self.batch_size: (i+1)*self.batch_size]  
+                        val_file_idxs_batch = val_file_idxs[i*self.batch_size: (i+1)*self.batch_size]
                         val_features_batch =  val_features[i*self.batch_size: (i+1)*self.batch_size]
                         feed_dict = {self.model.features: val_features_batch}
                         val_gen_cap = sess.run(generated_captions, feed_dict=feed_dict)
                         all_gen_cap[i*self.batch_size:(i+1)*self.batch_size] = val_gen_cap
-                        
+
                         val_decoded_gen = decode_captions(val_gen_cap, self.model.idx_to_word)
                         for k in np.random.permutation(val_gen_cap.shape[0])[:20]:
-                            print "Val video sample: ", val_file_names[val_file_idxs_batch[k]] 
+                            print "Val video sample: ", val_file_names[val_file_idxs_batch[k]]
                             val_ground_truths = val_captions[val_image_idxs == val_file_idxs_batch[k]]
                             val_decoded_gts = decode_captions(val_ground_truths, self.model.idx_to_word)
                             for j, gt in enumerate(val_decoded_gts):
@@ -522,7 +522,7 @@ class CaptioningSolver(object):
                             #val_ground_truth = val_captions_batch[0] #captions[image_idxs == image_idxs_batch[0]]
                             #val_decoded_gt = decode_captions(val_ground_truth, self.model.idx_to_word)
                             #print "Val ground truth: %s" % val_decoded_gt
-                            
+
                             print "Val generated caption: %s\n" % val_decoded_gen[k]
                             sys.stdout.flush()
 
