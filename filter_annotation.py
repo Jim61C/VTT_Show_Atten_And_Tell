@@ -1,4 +1,4 @@
-import cPickle as pickle 
+import cPickle as pickle
 import os
 import sys
 import copy
@@ -9,15 +9,26 @@ from pycocoevalcap.cider.cider import Cider
 from pycocoevalcap.meteor.meteor import Meteor
 
 FILTER_BLEU4_SCORE = 10**-5
-FILTER_METEOR_SCORE = 0.25
+FILTER_METEOR_SCORE = 0.20
+FILTER_CIDER_SCOER = 0.4
+FILTER_SUM_SCORE = 1.0
 
-def score(ref, hypo):
+def score(ref, hypo, metric = "METEOR"):
     scorers = [
-        (Bleu(4),["Bleu_1","Bleu_2","Bleu_3","Bleu_4"])
-        # (Meteor(),"METEOR"),
+        # (Bleu(4),["Bleu_1","Bleu_2","Bleu_3","Bleu_4"])
+        # (Meteor(),"METEOR")
         # (Rouge(),"ROUGE_L"),
         # (Cider(),"CIDEr")
     ]
+    if (metric == "METEOR"):
+    	scorers.append((Meteor(),"METEOR"))
+    elif (metric == "ROUGE_L"):
+    	scorers.append((Rouge(),"ROUGE_L"))
+    elif (metric == "CIDEr"):
+    	scorers.append((Cider(),"CIDEr"))
+    elif (metric == "Bleu_1" or metric == "Bleu_2" or metric == "Bleu_3" or metric == "Bleu_4"):
+    	scorers.append((Bleu(4),["Bleu_1","Bleu_2","Bleu_3","Bleu_4"]))
+    
     final_scores = {}
     for scorer,method in scorers:
         score,scores = scorer.compute_score(ref,hypo)
@@ -30,8 +41,9 @@ def score(ref, hypo):
     return final_scores
 
 def main():
-	this_split = sys.argv[1]
-	reference_file_template = './data_MSRVTT/{}/{}.references.pkl'
+	this_metric = sys.argv[1]
+	this_split = sys.argv[2]
+	reference_file_template = './data_MSRVTT/{}/{}.references.pkl.orig'
 
 	references = pickle.load(open(reference_file_template.format(this_split, this_split), 'rb'))
 
@@ -40,7 +52,7 @@ def main():
 		filtered_annotations = []
 
 		for gt in annotations:
-			hypo = {}	
+			hypo = {}
 			hypo[0] = [gt]
 
 			annotations_minus_gt = copy.deepcopy(annotations)
@@ -49,25 +61,44 @@ def main():
 			ref[0] = annotations_minus_gt
 
 			# leave one out score
-			final_scores = score(ref, hypo)
-			print "gt: ", gt
-			print 'Bleu_1:\t',final_scores['Bleu_1']  
-			print 'Bleu_2:\t',final_scores['Bleu_2']  
-			print 'Bleu_3:\t',final_scores['Bleu_3']  
-			print 'Bleu_4:\t',final_scores['Bleu_4']  
-			# print 'METEOR:\t',final_scores['METEOR']  
-			# print 'ROUGE_L:',final_scores['ROUGE_L']  
+			final_scores = score(ref, hypo, this_metric)
+			# print "gt: ", gt
+			# print 'Bleu_1:\t',final_scores['Bleu_1']
+			# print 'Bleu_2:\t',final_scores['Bleu_2']
+			# print 'Bleu_3:\t',final_scores['Bleu_3']
+			# print 'Bleu_4:\t',final_scores['Bleu_4']
+			# print 'METEOR:\t',final_scores['METEOR']
+			# print 'ROUGE_L:',final_scores['ROUGE_L']
 			# print 'CIDEr:\t',final_scores['CIDEr']
 
-			if (not (final_scores['Bleu_4'] < FILTER_BLEU4_SCORE)):
-			# if (not (final_scores['METEOR'] < FILTER_METEOR_SCORE)):
-				filtered_annotations.append(gt)
+			if (this_metric == "Bleu_4"):
+				if (not (final_scores['Bleu_4'] < FILTER_BLEU4_SCORE)):
+					filtered_annotations.append(gt)	
+			elif (this_metric == "METEOR"):
+				if (not (final_scores['METEOR'] < FILTER_METEOR_SCORE)):
+					filtered_annotations.append(gt)
+			elif (this_metric == "CIDEr"):
+				if (not (final_scores['CIDEr'] < FILTER_CIDER_SCOER)):
+					filtered_annotations.append(gt)
+			else:
+				# use sum score
+				score_sum = final_scores['Bleu_4'] + final_scores['CIDEr'] + final_scores['METEOR']
+				if (not (score_sum < FILTER_SUM_SCORE)):
+					filtered_annotations.append(gt)
+
+		filtered_references[i] = filtered_annotations
 
 		print "references[{}]: ".format(i), "number of inconsistent gt:", len(annotations) - len(filtered_annotations), "\n\n"
 
+	# dump references
+	f = open('./data_MSRVTT/{}/{}.references.filtered.{}.pkl'.format(this_split, this_split, this_metric), 'wb')
+	pickle.dump(filtered_references, f, protocol = pickle.HIGHEST_PROTOCOL)
+	f.close()
+
 if __name__ == "__main__":
-	if len(sys.argv) != 2:
-		print "Usage: python {} split".format(sys.argv[0])
+	if len(sys.argv) != 3:
+		print "Usage: python {} metric split".format(sys.argv[0])
+		print "metric -- E.g., METEOR"
 		print "split -- E.g, test"
 		exit()
 	main()
