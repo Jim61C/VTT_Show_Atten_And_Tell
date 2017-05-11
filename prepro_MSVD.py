@@ -155,6 +155,9 @@ def main():
     save_pickle(val_dataset, 'data_MSVD/val/val.annotations.pkl')
     save_pickle(test_dataset, 'data_MSVD/test/test.annotations.pkl')
 
+    all_features = np.load(config.MSVD_FEATURE_INCEPTION)
+    all_features = np.expand_dims(all_features, axis = 1)
+
     for split in ['train', 'val', 'test']:
         annotations = load_pickle('./data_MSVD/%s/%s.annotations.pkl' % (split, split))
 
@@ -185,10 +188,9 @@ def main():
                 i += 1
                 feature_to_captions[i] = []
                 # append feature
-                this_video_feature_path = config.MSVD_FEATURE_PATH_TEMPLATE.format(video_file[video_file.rfind('/')+1:video_file.find('.avi')])
-                this_video_feature = load_pickle(this_video_feature_path)
+                this_video_feature = all_features[int(video_id)]
                 features.append(this_video_feature)
-                print "{} feature appended :".format(split), this_video_feature_path
+                print "{} feature appended :".format(split), video_file
 
             feature_to_captions[i].append(caption.lower() + ' .')
 
