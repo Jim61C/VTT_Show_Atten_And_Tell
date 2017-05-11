@@ -101,6 +101,9 @@ def test_to_csv():
 		assert (len(scores_save[scores_save.keys()[0]]) == len(scores_save[scores_save.keys()[i]])), \
 		'metric ' + scores_save.keys()[i] + " do not have the same amount of data"
 
+	if(not os.path.exists('results_{}/'.format(config.DATASET_SUFFIX))):
+		os.makedirs('results_{}/'.format(config.DATASET_SUFFIX))
+
 	with open('results_{}/{}.csv'.format(config.DATASET_SUFFIX, this_split), 'wb') as csvfile:
 		writer = csv.DictWriter(csvfile, fieldnames=scores_save.keys())
 
