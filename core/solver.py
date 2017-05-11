@@ -1,5 +1,6 @@
 import skvideo.io
 import tensorflow as tf
+import matplotlib
 import matplotlib.pyplot as plt
 import skimage.transform
 import numpy as np
@@ -211,7 +212,7 @@ class CaptioningSolver(object):
 
             if attention_visualization:
                 # just check 10 random samples
-                for n in range(10):
+                for n in range(len(decoded)):
                     print "Sampled Caption: %s" %decoded[n]
 
                     # Plot original video frames
@@ -219,7 +220,7 @@ class CaptioningSolver(object):
                     # try:
                     videodata = skvideo.io.vread(str(this_video))
                     frame_count = videodata.shape[0]
-                    frames_selected = np.arange(0, frame_count, 30) # every couple of frames
+                    frames_selected = np.arange(0, frame_count, int(np.ceil(frame_count/10.0))) # every couple of frames
 
                     if (dynamic_image):
                         frame_weight = 1.0 / len(frames_selected)
@@ -254,11 +255,14 @@ class CaptioningSolver(object):
                         plt.clf()
 
                     else:
-                        for frame_pos in frames_selected:
+                        T = len(decoded[n].split(" ")) + 1
+                        for (i, frame_pos) in enumerate(frames_selected):
+                            if (i > 10):
+                                continue
                             print "plot frame:", frame_pos, "/", frame_count
                             img = videodata[frame_pos]
                             img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
-                            plt.subplot(4, 5, 1)
+                            plt.subplot(10, T, T*i + 1)
                             plt.imshow(img)
                             plt.axis('off')
 
@@ -267,16 +271,21 @@ class CaptioningSolver(object):
                             for t in range(len(words)):
                                 if t > 18:
                                     break
-                                plt.subplot(4, 5, t+2)
-                                plt.text(0, 1, '%s(%.2f)'%(words[t], bts[n,t]) , color='black', backgroundcolor='white', fontsize=8)
+                                plt.subplot(10, T, T*i + t+2)
+                                print "plot at:", T*i + t+2, '/', 10*T
+                                plt.text(0, 0, '%s(%.2f)'%(words[t], bts[n,t]) , color='black', backgroundcolor=(1, 1, 1, 0.0), fontsize=7)
                                 plt.imshow(img)
                                 alp_curr = alps[n,t,:].reshape(8,8)
                                 alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
                                 plt.imshow(alp_img, alpha=0.85)
                                 plt.axis('off')
-                            # plt.show()
-                            plt.savefig('{}/sample{}_frame{}.png'.format(save_folder, n, frame_pos))
-                            plt.clf()
+
+                        plt.tight_layout(pad=0.3, w_pad=-2, h_pad=-1.6) # TODO: this issue?
+                        plt.savefig('{}/sample{}.png'.format(save_folder, n), dpi=900)
+                        plt.clf()
+                        # matplotlib.rcdefaults()
+                        plt.close('all')
+
                     # except:
                     #     print "video ", this_video, " unreadable"
 
@@ -326,21 +335,23 @@ class CaptioningSolver(object):
                 print "Caption for this video: %s" %decoded[0]
 
                 # try:
-                videodata = skvideo.io.vread(str(this_video))
-                frame_count = videodata.shape[0]
+                reader = skvideo.io.FFmpegReader(str(this_video))
+                frame_count = reader.getShape()[0]
+                print "frame_count:", frame_count
                 frames_selected = np.arange(0, frame_count, int(np.ceil(frame_count/10.0))) # every couple of frames
 
                 if (dynamic_image):
                     frame_weight = 1.0 / len(frames_selected)
-                    
-                    # get average image across frames
-                    img = videodata[0]
-                    img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
-                    avg_image = np.zeros(img.shape)
-                    for frame_pos in frames_selected:
-                        img = videodata[frame_pos]
-                        img = skimage.transform.resize(img, (255, 255))
-                        avg_image = avg_image + frame_weight * img
+                    avg_image = np.zeros(tuple(reader.getShape()[1:]))
+
+                    for cur_frame in range(0, frame_count):
+                        try:
+                            img = reader.nextFrame().next()
+                            if (cur_frame in frames_selected):
+                                img = skimage.transform.resize(img, (255, 255))
+                                avg_image = avg_image + frame_weight * img
+                        except:
+                            print "frame", cur_frame, " can not be read"
 
                     plt.subplot(4, 5, 1)
                     plt.imshow(avg_image)
@@ -363,29 +374,40 @@ class CaptioningSolver(object):
                     plt.clf()
 
                 else:
-                    for frame_pos in frames_selected:
-                        print "plot frame:", frame_pos, "/", frame_count
-                        img = videodata[frame_pos]
-                        img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
-                        plt.subplot(4, 5, 1)
-                        plt.imshow(img)
-                        plt.axis('off')
+                    i = 0
+                    for cur_frame in range(0, frame_count):
+                        try:
+                            img = reader.nextFrame().next()
+                            if (cur_frame in frames_selected):
+                                T = len(decoded[0].split(" ")) + 1
+                                print "plot frame:", cur_frame, "/", frame_count
+                                img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
+                                # plot maximum 10 rows
+                                if i >= 10:
+                                    continue
+                                plt.subplot(10, T, T*i + 1)
+                                plt.imshow(img)
+                                plt.axis('off')
 
-                        # Plot images with attention weights
-                        words = decoded[0].split(" ")
-                        for t in range(len(words)):
-                            if t > 18:
-                                break
-                            plt.subplot(4, 5, t+2)
-                            plt.text(0, 1, '%s(%.2f)'%(words[t], bts[0,t]) , color='black', backgroundcolor='white', fontsize=8)
-                            plt.imshow(img)
-                            alp_curr = alps[0,t,:].reshape(8,8)
-                            alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
-                            plt.imshow(alp_img, alpha=0.85)
-                            plt.axis('off')
-                        # plt.show()
-                        plt.savefig('{}/{}_frame{}.png'.format(save_folder, video_name, frame_pos))
-                        plt.clf()
+                                # Plot images with attention weights
+                                words = decoded[0].split(" ")
+                                for t in range(len(words)):
+                                    if t > 18:
+                                        break
+                                    ax = plt.subplot(10, T, T*i + t+2)
+                                    plt.text(0, 0, '%s(%.2f)'%(words[t], bts[0,t]) , color='black', backgroundcolor=(1, 1, 1, 0.0), fontsize=7)
+                                    plt.imshow(img)
+                                    alp_curr = alps[0,t,:].reshape(8,8)
+                                    alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
+                                    plt.imshow(alp_img, alpha=0.85)
+                                    plt.axis('off')
+                                i += 1
+                        except:
+                            print "frame ", cur_frame, " can not be read"
+                    # plt.show()
+                    plt.tight_layout(pad=0.3, w_pad=-2, h_pad=-1.6)
+                    plt.savefig('{}/{}.png'.format(save_folder, video_name), dpi=900)
+                    plt.clf()
                 # except:
                 #     print "video ", this_video, " unreadable"
 

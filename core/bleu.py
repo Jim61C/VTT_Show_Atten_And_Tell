@@ -38,6 +38,9 @@ def evaluate(data_path='./data', split='val', get_scores=False):
         ref = pickle.load(f)
     with open(candidate_path, 'rb') as f:
         cand = pickle.load(f)
+
+
+    print "len(ref):", len(ref)
     
     # make dictionary
     hypo = {}
@@ -45,9 +48,10 @@ def evaluate(data_path='./data', split='val', get_scores=False):
         # print "i:", i, ",  caption:", caption
         hypo[i] = [caption]
 
-    # print "check references:"
-    # for i, caption in ref.iteritems():
-    #     print "i:", i 
+    print "check references:"
+    for i, caption in ref.iteritems():
+        if (len(caption) == 0):
+            print "i:", i, ", len(caption):", len(caption)
     
     # compute bleu score
     final_scores = score(ref, hypo)
@@ -74,7 +78,7 @@ def evaluate(data_path='./data', split='val', get_scores=False):
     
     
 def UnitTest():
-    evaluate(data_path='./data_MSVD', split='val', get_scores=False)
+    evaluate(data_path='./data_MSRVTT', split='test', get_scores=False)
     
 
 if __name__ == "__main__":

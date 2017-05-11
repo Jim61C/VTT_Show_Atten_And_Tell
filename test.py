@@ -27,7 +27,7 @@ plt.rcParams['image.cmap'] = 'gray'
 def main():
 	# load val dataset to print out bleu scores every epoch
 	val_data = load_coco_data(data_path=config.DATASET, split='val')
-	# test_data = load_coco_data(data_path=config.DATASET, split='test')
+	test_data = load_coco_data(data_path=config.DATASET, split='test')
 
 	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
 		word_to_idx = pickle.load(f)
@@ -39,21 +39,21 @@ def main():
 	# Test, put data as dummy (here just use val_data)
 	solver = CaptioningSolver(model, val_data, val_data, n_epochs=20, batch_size=98, update_rule='adam',
 										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
-									pretrained_model=None, model_path='model_{}/lstm/'.format(config.DATASET_SUFFIX), test_model='model_{}/lstm/model-7'.config(config.DATASET_SUFFIX),
+									pretrained_model=None, model_path='model_{}/lstm/'.format(config.DATASET_SUFFIX), test_model='model_{}/lstm/model-7'.format(config.DATASET_SUFFIX),
 									 print_bleu=True, log_path='log/', data_path=config.DATASET)
 
 
 	# Test, save produced captions
-	solver.test(val_data, split='val', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_{}/val'.format(config.DATASET_SUFFIX), dynamic_image = True)
-	# tf.get_variable_scope().reuse_variables()
-	# solver.test(test_data, split='test', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_{}/test'.format(config.DATASET_SUFFIX))
+	solver.test(val_data, split='val', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_{}/val'.format(config.DATASET_SUFFIX))
+	tf.get_variable_scope().reuse_variables()
+	solver.test(test_data, split='test', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_{}/test'.format(config.DATASET_SUFFIX))
 
 	# Evaluation
 	print "Evaluation, validation set..."
 	evaluate(data_path=config.DATASET, split='val')
 
-	# print "Evaluation, test set..."
-	# evaluate(data_path=config.DATASET, split='test')
+	print "Evaluation, test set..."
+	evaluate(data_path=config.DATASET, split='test')
 
 	print "End of Test!"
 
@@ -145,14 +145,14 @@ def test_one():
 	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
 		word_to_idx = pickle.load(f)
 
-	model = CaptionGenerator(word_to_idx, dim_feature=[64, 2048], dim_embed=512,
+	model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, 2048], dim_embed=512,
 									   dim_hidden=1024, n_time_step=16, prev2out=True,
 												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, device_id = '/gpu:0')
 
 	# Test, put data as dummy (not used)
 	solver = CaptioningSolver(model, [], [], n_epochs=20, batch_size=2, update_rule='adam',
 										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
-									pretrained_model=None, model_path='model/lstm/', test_model='model/lstm/model-11',
+									pretrained_model=None, model_path='model_{}/lstm/'.format(config.DATASET_SUFFIX), test_model='model_{}/lstm/model-7'.format(config.DATASET_SUFFIX),
 									 print_bleu=True, log_path='log/')
 
 
@@ -166,6 +166,9 @@ if __name__ == "__main__":
 		print "Usage: python {} option [split]".format(sys.argv[0])
 		print "option -- E.g., csv/visualise/one"
 		print "[split] -- in case of 'csv' option, E.g., test, then test.csv will be saved"
+
+		print "\nUsage: python {} one video_file".format(sys.argv[0])
+		print "video_file -- the path to the one video to test on"
 		exit()
 	if (sys.argv[1] == 'csv'):
 		test_to_csv()
