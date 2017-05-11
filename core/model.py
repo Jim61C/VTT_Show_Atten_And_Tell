@@ -58,7 +58,8 @@ class CaptionGenerator(object):
         # Place holder for features and captions
         self.features = tf.placeholder(tf.float32, [None, self.L, self.D])
         self.captions = tf.placeholder(tf.int32, [None, self.T + 1])
-    
+        self.tags = tf.placeholder(tf.float32, [None, self.V]) # binary tensor (list of binary tag vectors)
+
     def _get_initial_lstm(self, features):
         with tf.variable_scope('initial_lstm'):
             features_mean = tf.reduce_mean(features, 1)
@@ -76,7 +77,18 @@ class CaptionGenerator(object):
         with tf.variable_scope('word_embedding', reuse=reuse):
             w = tf.get_variable('w', [self.V, self.M], initializer=self.emb_initializer)
             x = tf.nn.embedding_lookup(w, inputs, name='word_vector')  # (N, T, M) or (N, M)
-            return x
+            return x, w
+    
+    def _tag_embedding(self, inputs, embedding_w, reuse = False):
+        with tf.variable_scope('tag_embedding', reuse=reuse):
+            # compute average tag vector
+            #num_tags = tf.clip_by_value(tf.reduce_sum(inputs, axis = 1), 1, 1000)
+            #num_tags = tf.tile(num_tags[:, tf.newaxis], (1, self.M))
+            #x = tf.divide(tf.matmul(inputs, embedding_w), num_tags, name='tag_vector') # (N, V) * (V, M)
+            x = tf.matmul(inputs, embedding_w, name = 'tag_vector') # (N, V) * (V, M)
+            tag_weight = tf.get_variable(
+                name = 'tag_weight', shape = (1, ), dtype = tf.float32, initializer = tf.constant_initializer(1.0))
+            return tag_weight * x
 
     def _project_features(self, features):
         with tf.variable_scope('project_features'):
@@ -153,7 +165,8 @@ class CaptionGenerator(object):
         features = self._batch_norm(features, mode='train', name='conv_features')
         
         c, h = self._get_initial_lstm(features=features)
-        x = self._word_embedding(inputs=captions_in)
+        x, w = self._word_embedding(inputs=captions_in)
+        tag_embedding = self._tag_embedding(inputs=self.tags, embedding_w = w)
         features_proj = self._project_features(features=features)
 
         loss = 0.0
@@ -166,11 +179,12 @@ class CaptionGenerator(object):
 
             if self.selector:
                 context, beta = self._selector(context, h, reuse=(t!=0)) 
-
+            
+            lstm_input = tf.add(x[:,t,:], tag_embedding, name = "input")
             with tf.variable_scope('lstm', reuse=(t!=0)):
-                _, (c, h) = lstm_cell(inputs=tf.concat(axis=1, values=[x[:,t,:], context]), state=[c, h])
+                _, (c, h) = lstm_cell(inputs=tf.concat(axis=1, values=[lstm_input, context]), state=[c, h])
 
-            logits = self._decode_lstm(x[:,t,:], h, context, dropout=self.dropout, reuse=(t!=0))
+            logits = self._decode_lstm(lstm_input, h, context, dropout=self.dropout, reuse=(t!=0))
             loss += tf.reduce_sum(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=captions_out[:, t]) * mask[:, t])
            
         if self.alpha_c > 0:
@@ -197,9 +211,10 @@ class CaptionGenerator(object):
 
         for t in range(max_len):
             if t == 0:
-                x = self._word_embedding(inputs=tf.fill([tf.shape(features)[0]], self._start))
+                x, w = self._word_embedding(inputs=tf.fill([tf.shape(features)[0]], self._start))
+                tag_embedding = self._tag_embedding(inputs=self.tags, embedding_w = w)
             else:
-                x = self._word_embedding(inputs=sampled_word, reuse=True)  
+                x, _ = self._word_embedding(inputs=sampled_word, reuse=True)  
           
             context, alpha = self._attention_layer(features, features_proj, h, reuse=(t!=0))
             alpha_list.append(alpha)
@@ -207,11 +222,12 @@ class CaptionGenerator(object):
             if self.selector:
                 context, beta = self._selector(context, h, reuse=(t!=0)) 
                 beta_list.append(beta)
-
+            
+            lstm_input = tf.add(x, tag_embedding, name = "input")
             with tf.variable_scope('lstm', reuse=(t!=0)):
-                _, (c, h) = lstm_cell(inputs=tf.concat(axis=1, values=[x, context]), state=[c, h])
+                _, (c, h) = lstm_cell(inputs=tf.concat(axis=1, values=[lstm_input, context]), state=[c, h])
 
-            logits = self._decode_lstm(x, h, context, reuse=(t!=0))
+            logits = self._decode_lstm(lstm_input, h, context, reuse=(t!=0))
             sampled_word = tf.argmax(logits, 1)       
             sampled_word_list.append(sampled_word)     
 

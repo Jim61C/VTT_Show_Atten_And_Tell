@@ -9,6 +9,7 @@ import cPickle as pickle
 from scipy import ndimage
 from utils import *
 from bleu import evaluate
+import sys
 
 
 class CaptioningSolver(object):
@@ -69,9 +70,11 @@ class CaptioningSolver(object):
         n_examples = self.data['captions'].shape[0]
         n_iters_per_epoch = int(np.ceil(float(n_examples)/self.batch_size))
         features = self.data['features']
+        tags = self.data['tags']
         captions = self.data['captions']
         image_idxs = self.data['image_idxs']
         val_features = self.val_data['features']
+        val_tags = self.val_data['tags']
         n_iters_val = int(np.ceil(float(val_features.shape[0])/self.batch_size))
 
         # build graphs for training model and sampling captions
@@ -92,7 +95,8 @@ class CaptioningSolver(object):
         for var in tf.trainable_variables():
             tf.summary.histogram(var.op.name, var)
         for grad, var in grads_and_vars:
-            tf.summary.histogram(var.op.name+'/gradient', grad)
+            if grad is not None:
+                tf.summary.histogram(var.op.name+'/gradient', grad)
 
         summary_op = tf.summary.merge_all()
 
@@ -124,11 +128,12 @@ class CaptioningSolver(object):
                 image_idxs = image_idxs[rand_idxs]
 
                 for i in range(n_iters_per_epoch):
-                    print "iteration: ", i+1, "self.print_every: ", self.print_every
+                    #print "iteration: ", i+1, "self.print_every: ", self.print_every
                     captions_batch = captions[i*self.batch_size:(i+1)*self.batch_size]
                     image_idxs_batch = image_idxs[i*self.batch_size:(i+1)*self.batch_size]
                     features_batch = features[image_idxs_batch]
-                    feed_dict = {self.model.features: features_batch, self.model.captions: captions_batch}
+                    tags_batch = tags[image_idxs_batch]
+                    feed_dict = {self.model.features: features_batch, self.model.captions: captions_batch, self.model.tags: tags_batch}
                     _, l = sess.run([train_op, loss], feed_dict)
                     curr_loss += l
 
@@ -140,16 +145,18 @@ class CaptioningSolver(object):
                     if (i+1) % self.print_every == 0:
                         print "\nTrain loss at epoch %d & iteration %d (mini-batch): %.5f" %(e+1, i+1, l)
                         ground_truths = captions[image_idxs == image_idxs_batch[0]]
-                        print len(image_idxs)
-                        print len(image_idxs_batch)
-                        print len(captions[image_idxs == image_idxs_batch[0]])
-                        print "ground_truths: ", ground_truths
+                        #print len(image_idxs)
+                        #print len(image_idxs_batch)
+                        #print len(captions[image_idxs == image_idxs_batch[0]])
+                        #print "ground_truths: ", ground_truths
                         decoded = decode_captions(ground_truths, self.model.idx_to_word)
                         for j, gt in enumerate(decoded):
                             print "Ground truth %d: %s" %(j+1, gt)
                         gen_caps = sess.run(generated_captions, feed_dict)
                         decoded = decode_captions(gen_caps, self.model.idx_to_word)
                         print "Generated caption: %s\n" %decoded[0]
+                    
+                    sys.stdout.flush()
 
                 print "Previous epoch loss: ", prev_loss
                 print "Current epoch loss: ", curr_loss
@@ -162,22 +169,25 @@ class CaptioningSolver(object):
                     all_gen_cap = np.ndarray((val_features.shape[0], 20))
                     for i in range(n_iters_val):
                         features_batch = val_features[i*self.batch_size:(i+1)*self.batch_size]
-                        feed_dict = {self.model.features: features_batch}
+                        tags_batch = val_tags[i*self.batch_size:(i+1)*self.batch_size]
+                        feed_dict = {self.model.features: features_batch, self.model.tags: tags_batch}
                         gen_cap = sess.run(generated_captions, feed_dict=feed_dict)
                         all_gen_cap[i*self.batch_size:(i+1)*self.batch_size] = gen_cap
 
                     all_decoded = decode_captions(all_gen_cap, self.model.idx_to_word)
-                    save_pickle(all_decoded, "./data_MSRVTT/val/val.candidate.captions.pkl")
-                    scores = evaluate(data_path='./data_MSRVTT', split='val', get_scores=True)
+                    save_pickle(all_decoded, "./data_MSRVTT_mfcc/val/val.candidate.captions.pkl")
+                    scores = evaluate(data_path='./data_MSRVTT_mfcc', split='val', get_scores=True)
                     write_bleu(scores=scores, path=self.model_path, epoch=e)
 
                 # save model's parameters
                 if (e+1) % self.save_every == 0:
                     saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e+1)
                     print "model-%s saved." %(e+1)
+                
+                sys.stdout.flush()
 
 
-    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False):
+    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_path='./data', save_folder = 'plots', dynamic_image = False):
         '''
         Args:
             - data: dictionary with the following keys:
@@ -194,6 +204,7 @@ class CaptioningSolver(object):
             os.makedirs(save_folder)
 
         features = data['features']
+        tags = data['tags']
 
         # build a graph to sample captions
         alphas, betas, sampled_captions = self.model.build_sampler(max_len=20)    # (N, max_len, L), (N, max_len)
@@ -203,8 +214,8 @@ class CaptioningSolver(object):
         with tf.Session(config=config) as sess:
             saver = tf.train.Saver()
             saver.restore(sess, self.test_model)
-            features_batch, image_files = sample_coco_minibatch(data, self.batch_size)
-            feed_dict = { self.model.features: features_batch }
+            features_batch, tags_batch, image_files = sample_coco_minibatch_with_tags(data, self.batch_size)
+            feed_dict = { self.model.features: features_batch, self.model.tags: tags_batch }
             alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
             decoded = decode_captions(sam_cap, self.model.idx_to_word)
 
@@ -284,7 +295,8 @@ class CaptioningSolver(object):
                 num_iter = int(np.ceil(float(features.shape[0]) / self.batch_size))
                 for i in range(num_iter):
                     features_batch = features[i*self.batch_size:(i+1)*self.batch_size]
-                    feed_dict = { self.model.features: features_batch }
+                    tags_batch = tags[i*self.batch_size:(i+1)*self.batch_size]
+                    feed_dict = { self.model.features: features_batch, self.model.tags: tags_batch }
                     all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
-                save_pickle(all_decoded, "./data_MSRVTT/%s/%s.candidate.captions.pkl" %(split,split))
+                save_pickle(all_decoded, save_path+"/%s/%s.candidate.captions.pkl" %(split,split))

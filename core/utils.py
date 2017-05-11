@@ -11,6 +11,7 @@ def load_coco_data(data_path='./data', split='train'):
     data = {}
   
     data['features'] = np.asarray(hickle.load(os.path.join(data_path, '%s.features.hkl' %split)))
+    data['tags'] = hickle.load(os.path.join(data_path, '%s.tag_vectors.hkl' %split))
     with open(os.path.join(data_path, '%s.file.names.pkl' %split), 'rb') as f:
         data['file_names'] = pickle.load(f)   
     with open(os.path.join(data_path, '%s.captions.pkl' %split), 'rb') as f:
@@ -60,6 +61,14 @@ def sample_coco_minibatch(data, batch_size):
     features = data['features'][mask]
     file_names = data['file_names'][mask]
     return features, file_names
+
+def sample_coco_minibatch_with_tags(data, batch_size):
+    data_size = data['features'].shape[0]
+    mask = np.random.choice(data_size, batch_size)
+    features = data['features'][mask]
+    file_names = data['file_names'][mask]
+    tags = data['tags'][mask]
+    return features, tags, file_names
 
 def write_bleu(scores, path, epoch):
     if epoch == 0:
