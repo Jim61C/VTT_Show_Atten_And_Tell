@@ -14,7 +14,7 @@ def main():
     # load val dataset to print out bleu scores every epoch
     val_data = load_coco_data(data_path=config.DATASET, split='val')
 
-    model = CaptionGenerator(word_to_idx, dim_feature=[64, 2048], dim_embed=512,
+    model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, 2048], dim_embed=512,
                                        dim_hidden=1024, n_time_step=16, prev2out=True, 
                                                  ctx2out=True, alpha_c=1.0, selector=True, dropout=True, device_id = '/gpu:0')
 
