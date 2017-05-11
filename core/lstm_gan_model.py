@@ -267,20 +267,25 @@ class CaptionGenerator(object):
             D_W1 = tf.get_variable('D_W1', [max_len * self.M + self.D, h_dim], initializer=self.weight_initializer) #tf.Variable(self.xavier_init([X_dim, h_dim]))
             D_b1 = tf.Variable(tf.zeros(shape=[h_dim,]))
 
+            D_W3 = tf.get_variable('D_W3', [h_dim, h_dim], initializer=self.weight_initializer)
+            D_b3 = tf.Variable(tf.zeros(shape=[h_dim,]))
+
             D_W2 = tf.get_variable('D_W2', [h_dim, 1], initializer=self.weight_initializer) 
             D_b2 = tf.Variable(tf.zeros(shape=[1,]))
 
-            theta_D = [D_W1, D_W2, D_b1, D_b2]
+            theta_D = [D_W1, D_W2, D_W3, D_b1, D_b2, D_b3]
 
             """ Discriminator """
             #print groundtruth_input.shape
             #print D_W1.shape
             D_h1 = tf.nn.relu(tf.matmul(groundtruth_input, D_W1) + D_b1)
-            D_logit_real = tf.matmul(D_h1, D_W2) + D_b2
+            D_h2 = tf.matmul(D_h1, D_W3) + D_b3
+            D_logit_real = tf.matmul(D_h2, D_W2) + D_b2
             D_real = tf.nn.sigmoid(D_logit_real)
 
             D_h1 = tf.nn.relu(tf.matmul(generated_input, D_W1) + D_b1)
-            D_logit_fake = tf.matmul(D_h1, D_W2) + D_b2
+            D_h2 = tf.matmul(D_h1, D_W3) + D_b3
+            D_logit_fake = tf.matmul(D_h2, D_W2) + D_b2
             D_fake = tf.nn.sigmoid(D_logit_fake)
 
         """ Discriminator loss """

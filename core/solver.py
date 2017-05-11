@@ -55,8 +55,8 @@ class CaptioningSolver(object):
         self.G_learning_rate = tf.placeholder(tf.float32, shape=[]) #self.learning_rate*0.01
         self.D_learning_rate = tf.placeholder(tf.float32, shape=[]) #self.learning_rate*0.01
         self.LSTM_learning_rate = tf.placeholder(tf.float32, shape=[]) #self.learning_rate*0.000001
-        self.lr_G = self.learning_rate*0.005
-        self.lr_D = self.learning_rate*0.01
+        self.lr_G = self.learning_rate
+        self.lr_D = self.learning_rate
         self.lr_LSTM = 0 #self.learning_rate*0.0000001
 
         # set an optimizer by update rule
@@ -461,9 +461,15 @@ class CaptioningSolver(object):
                         print ""
                         
                         # adaptive learning rate
-                        self.lr_G = self.lr_G * self.sigmoid(np.mean(d_real),-.5,15)
-                        self.lr_D = self.lr_D * self.sigmoid(np.mean(d_fake),-.5,15)
+                        #self.lr_G = self.lr_G * self.sigmoid(np.mean(d_real),-.5,15)
+                        #self.lr_D = self.lr_D * self.sigmoid(np.mean(d_fake),-.5,15)
                         self.lr_LSTM = self.lr_LSTM
+                        if e<5:
+                            self.lr_G = 0
+                            self.lr_LSTM = 0
+                        else: 
+                            self.lr_G = self.learning_rate
+                            self.lr_LSTM = self.learning_rate
                         print "G_learning_rate : ", self.lr_G
                         print "D_learning_rate : ", self.lr_D
                         print "LSTM_learning_rate : ", self.lr_LSTM
