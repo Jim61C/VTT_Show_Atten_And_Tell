@@ -20,10 +20,10 @@ plt.rcParams['image.cmap'] = 'gray'
 
 def main():
 	# load val dataset to print out bleu scores every epoch
-	val_data = load_coco_data(data_path='./data_MSRVTT', split='val')
-	# test_data = load_coco_data(data_path='./data_MSRVTT', split='test')
+	val_data = load_coco_data(data_path=config.DATASET, split='val')
+	# test_data = load_coco_data(data_path=config.DATASET, split='test')
 
-	with open('./data_MSRVTT/train/word_to_idx.pkl') as f:
+	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
 		word_to_idx = pickle.load(f)
 
 	model = CaptionGenerator(word_to_idx, dim_feature=[64, 2048], dim_embed=512,
@@ -38,16 +38,16 @@ def main():
 
 
 	# Test, save produced captions
-	solver.test(val_data, split='val', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots/val', dynamic_image = True)
+	solver.test(val_data, split='val', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_{}/val'.format(config.DATASET_SUFFIX), dynamic_image = True)
 	# tf.get_variable_scope().reuse_variables()
-	# solver.test(test_data, split='test', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots/test')
+	# solver.test(test_data, split='test', attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_{}/test'.format(config.DATASET_SUFFIX))
 
 	# Evaluation
 	print "Evaluation, validation set..."
-	evaluate(data_path='./data_MSRVTT', split='val')
+	evaluate(data_path=config.DATASET, split='val')
 
 	# print "Evaluation, test set..."
-	# evaluate(data_path='./data_MSRVTT', split='test')
+	# evaluate(data_path=config.DATASET, split='test')
 
 	print "End of Test!"
 
@@ -55,9 +55,9 @@ def test_to_csv():
 	this_split = sys.argv[2]
 	print "loading split ", this_split, '...'
 	# load val dataset to print out bleu scores every epoch
-	data = load_coco_data(data_path='./data_MSRVTT', split=this_split)
+	data = load_coco_data(data_path=config.DATASET, split=this_split)
 
-	with open('./data_MSRVTT/train/word_to_idx.pkl') as f:
+	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
 		word_to_idx = pickle.load(f)
 
 	model = CaptionGenerator(word_to_idx, dim_feature=[64, 2048], dim_embed=512,
@@ -86,8 +86,8 @@ def test_to_csv():
 		
 		if i > 1:
 			tf.get_variable_scope().reuse_variables()
-		solver.test(data, split=this_split, attention_visualization=False, save_sampled_captions = True, save_folder = 'plots/{}'.format(this_split))		
-		final_scores = evaluate(data_path='./data_MSRVTT', split=this_split, get_scores=True)
+		solver.test(data, split=this_split, attention_visualization=False, save_sampled_captions = True, save_folder = 'plots_{}/{}'.format(config.DATASET_SUFFIX, this_split))		
+		final_scores = evaluate(data_path=config.DATASET, split=this_split, get_scores=True)
 
 		for (metric, scores) in scores_save.iteritems():
 			scores.append(final_scores[metric])
@@ -97,7 +97,7 @@ def test_to_csv():
 		assert (len(scores_save[scores_save.keys()[0]]) == len(scores_save[scores_save.keys()[i]])), \
 		'metric ' + scores_save.keys()[i] + " do not have the same amount of data"
 
-	with open('{}.csv'.format(this_split), 'wb') as csvfile:
+	with open('results_{}/{}.csv'.format(config.DATASET_SUFFIX, this_split), 'wb') as csvfile:
 		writer = csv.DictWriter(csvfile, fieldnames=scores_save.keys())
 
 		writer.writeheader()

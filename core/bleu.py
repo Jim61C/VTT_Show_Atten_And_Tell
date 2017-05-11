@@ -74,7 +74,7 @@ def evaluate(data_path='./data', split='val', get_scores=False):
     
     
 def UnitTest():
-    evaluate(data_path='./data_MSRVTT', split='val', get_scores=False)
+    evaluate(data_path='./data_MSVD', split='val', get_scores=False)
     
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ class CaptioningSolver(object):
         self.model_path = kwargs.pop('model_path', './model/')
         self.pretrained_model = kwargs.pop('pretrained_model', None)
         self.test_model = kwargs.pop('test_model', './model/lstm/model-1')
-
+        self.data_path = kwargs.pop('data_path', './data_MSRVTT')
         # set an optimizer by update rule
         if self.update_rule == 'adam':
             self.optimizer = tf.train.AdamOptimizer
@@ -167,8 +167,8 @@ class CaptioningSolver(object):
                         all_gen_cap[i*self.batch_size:(i+1)*self.batch_size] = gen_cap
 
                     all_decoded = decode_captions(all_gen_cap, self.model.idx_to_word)
-                    save_pickle(all_decoded, "./data_MSRVTT/val/val.candidate.captions.pkl")
-                    scores = evaluate(data_path='./data_MSRVTT', split='val', get_scores=True)
+                    save_pickle(all_decoded, "{}/val/val.candidate.captions.pkl".format(self.data_path))
+                    scores = evaluate(data_path= self.data_path, split='val', get_scores=True)
                     write_bleu(scores=scores, path=self.model_path, epoch=e)
 
                 # save model's parameters
@@ -287,4 +287,4 @@ class CaptioningSolver(object):
                     feed_dict = { self.model.features: features_batch }
                     all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
-                save_pickle(all_decoded, "./data_MSRVTT/%s/%s.candidate.captions.pkl" %(split,split))
+                save_pickle(all_decoded, "%s/%s/%s.candidate.captions.pkl" %(self.data_path, split, split))
