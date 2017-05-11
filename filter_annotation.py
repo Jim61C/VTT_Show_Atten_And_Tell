@@ -8,7 +8,7 @@ from pycocoevalcap.rouge.rouge import Rouge
 from pycocoevalcap.cider.cider import Cider
 from pycocoevalcap.meteor.meteor import Meteor
 
-FILTER_BLEU4_SCORE = 10**-5
+FILTER_BLEU4_SCORE = 10**-9
 FILTER_METEOR_SCORE = 0.20
 FILTER_CIDER_SCOER = 0.4
 FILTER_SUM_SCORE = 1.0
@@ -62,7 +62,9 @@ def main():
 
 			# leave one out score
 			final_scores = score(ref, hypo, this_metric)
-			# print "gt: ", gt
+			print "gt: ", gt
+			for (key, val) in final_scores.iteritems():
+				print key, ": ", val
 			# print 'Bleu_1:\t',final_scores['Bleu_1']
 			# print 'Bleu_2:\t',final_scores['Bleu_2']
 			# print 'Bleu_3:\t',final_scores['Bleu_3']
@@ -88,7 +90,10 @@ def main():
 
 		filtered_references[i] = filtered_annotations
 
-		print "references[{}]: ".format(i), "number of inconsistent gt:", len(annotations) - len(filtered_annotations), "\n\n"
+		print "references[{}]: ".format(i), "number of inconsistent gt:", len(annotations) - len(filtered_annotations), "/", len(annotations), "\n\n"
+
+		if (len(filtered_annotations) == 0):
+			raise ValueError('Clean Too Much, score has become zero')
 
 	# dump references
 	f = open('./data_MSRVTT/{}/{}.references.filtered.{}.pkl'.format(this_split, this_split, this_metric), 'wb')
