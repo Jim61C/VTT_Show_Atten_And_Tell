@@ -204,6 +204,7 @@ class CaptioningSolver(object):
             saver = tf.train.Saver()
             saver.restore(sess, self.test_model)
             features_batch, image_files = sample_coco_minibatch(data, self.batch_size)
+            print "features_batch.shape:", features_batch.shape
             feed_dict = { self.model.features: features_batch }
             alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
             decoded = decode_captions(sam_cap, self.model.idx_to_word)
@@ -288,3 +289,105 @@ class CaptioningSolver(object):
                     all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
                 save_pickle(all_decoded, "%s/%s/%s.candidate.captions.pkl" %(self.data_path, split, split))
+    
+    def test_one_video(self, feature, this_video, attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False):
+        '''
+        Args:
+            - data: dictionary with the following keys:
+            - feature: feature vector of this one video
+            - this_video: video filename of this given one test
+            - attention_visualization: If True, visualize attention weights with images for each sampled word. (ipthon notebook)
+            - save_sampled_captions: If True, save sampled captions to pkl file for computing BLEU scores.
+        '''
+        video_name = this_video[max(this_video.rfind('/')+1, 0):this_video.rfind('.')]
+        video_folder = this_video[:this_video.rfind('/') + 1] + video_name + '/' # the folder corresponding to this video name
+        save_folder = video_folder + save_folder
+        if (not os.path.exists(save_folder)):
+            os.makedirs(save_folder)
+
+        features = np.expand_dims(feature, axis = 0) # make one batch
+
+        # build a graph to sample captions
+        alphas, betas, sampled_captions = self.model.build_sampler(max_len=20)    # (N, max_len, L), (N, max_len)
+
+        config = tf.ConfigProto(allow_soft_placement=True)
+        config.gpu_options.allow_growth = True
+        with tf.Session(config=config) as sess:
+            saver = tf.train.Saver()
+            saver.restore(sess, self.test_model)
+            features_batch = np.tile(features, (self.batch_size, 1, 1))
+            print "features_batch.shape:", features_batch.shape
+            feed_dict = { self.model.features: features_batch }
+            alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
+            decoded = decode_captions(sam_cap, self.model.idx_to_word)
+
+            if attention_visualization:
+
+                print "Caption for this video: %s" %decoded[0]
+
+                # try:
+                videodata = skvideo.io.vread(str(this_video))
+                frame_count = videodata.shape[0]
+                frames_selected = np.arange(0, frame_count, int(np.ceil(frame_count/10.0))) # every couple of frames
+
+                if (dynamic_image):
+                    frame_weight = 1.0 / len(frames_selected)
+                    
+                    # get average image across frames
+                    img = videodata[0]
+                    img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
+                    avg_image = np.zeros(img.shape)
+                    for frame_pos in frames_selected:
+                        img = videodata[frame_pos]
+                        img = skimage.transform.resize(img, (255, 255))
+                        avg_image = avg_image + frame_weight * img
+
+                    plt.subplot(4, 5, 1)
+                    plt.imshow(avg_image)
+                    plt.axis('off')
+
+                    # Plot images with attention weights
+                    words = decoded[0].split(" ")
+                    for t in range(len(words)):
+                        if t > 18:
+                            break
+                        plt.subplot(4, 5, t+2)
+                        plt.text(0, 1, '%s(%.2f)'%(words[t], bts[0,t]) , color='black', backgroundcolor='white', fontsize=8)
+                        plt.imshow(avg_image)
+                        alp_curr = alps[0,t,:].reshape(8,8)
+                        alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
+                        plt.imshow(alp_img, alpha=0.85)
+                        plt.axis('off')
+                    # plt.show()
+                    plt.savefig('{}/{}.png'.format(save_folder, video_name))
+                    plt.clf()
+
+                else:
+                    for frame_pos in frames_selected:
+                        print "plot frame:", frame_pos, "/", frame_count
+                        img = videodata[frame_pos]
+                        img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
+                        plt.subplot(4, 5, 1)
+                        plt.imshow(img)
+                        plt.axis('off')
+
+                        # Plot images with attention weights
+                        words = decoded[0].split(" ")
+                        for t in range(len(words)):
+                            if t > 18:
+                                break
+                            plt.subplot(4, 5, t+2)
+                            plt.text(0, 1, '%s(%.2f)'%(words[t], bts[0,t]) , color='black', backgroundcolor='white', fontsize=8)
+                            plt.imshow(img)
+                            alp_curr = alps[0,t,:].reshape(8,8)
+                            alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
+                            plt.imshow(alp_img, alpha=0.85)
+                            plt.axis('off')
+                        # plt.show()
+                        plt.savefig('{}/{}_frame{}.png'.format(save_folder, video_name, frame_pos))
+                        plt.clf()
+                # except:
+                #     print "video ", this_video, " unreadable"
+
+            if save_sampled_captions:
+                save_pickle(decoded, video_folder + "one.candidate.caption.pkl")

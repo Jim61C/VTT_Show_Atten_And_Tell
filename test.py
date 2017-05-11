@@ -7,11 +7,14 @@ import cPickle as pickle
 from core.solver import CaptioningSolver
 from core.model import CaptionGenerator
 from core.utils import load_coco_data
+from core.utils import save_pickle
 from core.bleu import evaluate
 import tensorflow as tf
 import sys
 import os
 import csv
+from feature_extractor.extract_inception_v3 import FeatureExtractor
+import config
 
 
 plt.rcParams['figure.figsize'] = (8.0, 6.0)  # set default size of plots
@@ -33,7 +36,7 @@ def main():
 	# Test, put data as dummy (here just use val_data)
 	solver = CaptioningSolver(model, val_data, val_data, n_epochs=20, batch_size=98, update_rule='adam',
 										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
-									pretrained_model=None, model_path='model/lstm/', test_model='model/lstm/model-11',
+									pretrained_model=None, model_path='model/lstm/', test_model='model/lstm/model-7',
 									 print_bleu=True, log_path='log/')
 
 
@@ -108,13 +111,59 @@ def test_to_csv():
 			writer.writerow(row_dict)
 
 
+def test_one():
+	video_file = sys.argv[2]
+	video_name = video_file[max(video_file.rfind('/')+1, 0):video_file.rfind('.')]
+	feature_path = config.TEST_ONE_VIDEO_FEATURE_TEMPLATE.format(video_name)
+
+	# get feature
+	this_feature = None
+	if (os.path.exists(feature_path)):
+		this_feature = pickle.load(open(feature_path, 'rb'))
+		print "feature already extracted for ", video_file
+	else:
+		extactor = FeatureExtractor('mixed_10/join:0')
+		avg_mided_10_feature_shape = (8,8,2048)
+
+		mixed_10_join_feature = extactor.extract_feature_video(video_file, \
+			None, None, avg_mided_10_feature_shape)
+		if (not mixed_10_join_feature is None):
+			this_feature = mixed_10_join_feature.reshape(-1, 2048)
+
+		save_pickle(this_feature, feature_path)
+
+	if (this_feature is None):
+		raise ValueError('The Given Video File ' + video_file + " gets no feature extracted!")
+
+	# set up test model
+	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
+		word_to_idx = pickle.load(f)
+
+	model = CaptionGenerator(word_to_idx, dim_feature=[64, 2048], dim_embed=512,
+									   dim_hidden=1024, n_time_step=16, prev2out=True,
+												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, device_id = '/gpu:0')
+
+	# Test, put data as dummy (not used)
+	solver = CaptioningSolver(model, [], [], n_epochs=20, batch_size=2, update_rule='adam',
+										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
+									pretrained_model=None, model_path='model/lstm/', test_model='model/lstm/model-11',
+									 print_bleu=True, log_path='log/')
+
+
+	# Test, save produced captions
+	solver.test_one_video(this_feature, video_file, attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_test_one/', dynamic_image = False)
+	
+
+
 if __name__ == "__main__":
 	if (len(sys.argv) < 2):
 		print "Usage: python {} option [split]".format(sys.argv[0])
-		print "option -- E.g., csv/visualise"
+		print "option -- E.g., csv/visualise/one"
 		print "[split] -- in case of 'csv' option, E.g., test, then test.csv will be saved"
 		exit()
 	if (sys.argv[1] == 'csv'):
 		test_to_csv()
+	elif (sys.argv[1] == 'one'):
+		test_one()
 	else:
 		main()
