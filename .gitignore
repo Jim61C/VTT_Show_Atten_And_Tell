@@ -96,6 +96,8 @@ ENV/
 ./data
 data/
 data_MSRVTT/
+data_MSVD/
+data_TRECVID/
 
 # Symlinks
 data
@@ -104,6 +106,16 @@ data_MSRVTT
 image/
 log/
 model/
+
+image_MSRVTT/
+image_MSVD/
+image_TRECVID/
+log_MSRVTT/
+log_MSVD/
+log_TRECVID/
+model_MSRVTT/
+model_MSVD/
+model_TRECVID/
 # report.txt
 
 
@@ -112,7 +124,15 @@ image
 
 # plots
 plots/
+plots_MSRVTT/
+plots_MSVD/
+plots_TRECVID/
 
 # config
 config.py
 
+# results
+results/
+results_MSRVTT/
+results_MSVD/
+results_TRECVID/
