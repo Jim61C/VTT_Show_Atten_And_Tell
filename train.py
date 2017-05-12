@@ -22,7 +22,7 @@ def main():
     print "Model loaded, start to solve..."
     solver = CaptioningSolver(model, data, val_data, n_epochs=20, batch_size=98, update_rule='adam',
                                           learning_rate=0.001, print_every=300, save_every=1, image_path='./image_{}/'.format(config.DATASET_SUFFIX),
-                                    pretrained_model=None, model_path='model_{}/lstm/'.format(config.DATASET_SUFFIX), test_model='model_{}/lstm/model-10'.format(config.DATASET_SUFFIX),
+                                    pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-10'.format(config.MODEL_PATH),
                                      print_bleu=True, use_tag = use_tag, log_path='log_{}/'.format(config.DATASET_SUFFIX), data_path = config.DATASET )
 
     solver.train()

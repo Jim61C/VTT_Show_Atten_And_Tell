@@ -14,7 +14,9 @@ import sys
 import os
 import csv
 from feature_extractor.extract_inception_v3 import FeatureExtractor
+from tag_extractor.extract_tag import TagExtractor
 import config
+import numpy as np
 
 reload(sys)
 sys.setdefaultencoding("utf-8") # to get rid of ASCII decoding issue
@@ -39,7 +41,7 @@ def main():
 	# Test, put data as dummy (here just use val_data)
 	solver = CaptioningSolver(model, val_data, val_data, n_epochs=20, batch_size=98, update_rule='adam',
 										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
-									pretrained_model=None, model_path='model_{}/lstm/'.format(config.DATASET_SUFFIX), test_model='model_{}/lstm/model-7'.format(config.DATASET_SUFFIX),
+									pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-7'.format(config.MODEL_PATH),
 									 print_bleu=True, log_path='log/', data_path=config.DATASET)
 
 
@@ -72,7 +74,7 @@ def test_to_csv():
 	# Test, put data as dummy
 	solver = CaptioningSolver(model, data, data, n_epochs=20, batch_size=98, update_rule='adam',
 									  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
-								pretrained_model=None, model_path='model_{}/lstm/'.format(config.DATASET_SUFFIX), test_model='model_{}/lstm/model-7'.format(config.DATASET_SUFFIX),
+								pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-7'.format(config.MODEL_PATH),
 								 print_bleu=True, log_path='log/', data_path=config.DATASET)
 	scores_save = {
 	'Bleu_1': [],
@@ -88,7 +90,7 @@ def test_to_csv():
 	for i in range(1, 21):
 		model_id = str(i)
 		print "evaluate for model-", model_id
-		solver.test_model='model_{}/lstm/model-{}'.format(config.DATASET_SUFFIX, model_id)
+		solver.test_model='{}/model-{}'.format(config.MODEL_PATH, model_id)
 
 		if i > 1:
 			tf.get_variable_scope().reuse_variables()
@@ -118,11 +120,14 @@ def test_to_csv():
 
 
 def test_one():
+	# use tag from OpenImage
+	use_tag = True
+
 	video_file = sys.argv[2]
 	video_name = video_file[max(video_file.rfind('/')+1, 0):video_file.rfind('.')]
-	feature_path = config.TEST_ONE_VIDEO_FEATURE_TEMPLATE.format(video_name)
-
+	
 	# get feature
+	feature_path = config.TEST_ONE_VIDEO_FEATURE_TEMPLATE.format(video_name)
 	this_feature = None
 	if (os.path.exists(feature_path)):
 		this_feature = pickle.load(open(feature_path, 'rb'))
@@ -141,23 +146,42 @@ def test_one():
 	if (this_feature is None):
 		raise ValueError('The Given Video File ' + video_file + " gets no feature extracted!")
 
+	# get tag
+	tag_path = config.TEST_ONE_VIDEO_TAG_TEMPLATE.format(video_name)
+	this_tag = None
+	if (os.path.exists(tag_path)):
+		this_tag = pickle.load(open(tag_path, 'rb'))
+		print "tag already extracted for ", video_file
+	else:
+		# extract tag for this video_file
+		tag_extractor = TagExtractor()
+		this_tag_list = tag_extractor.extract_tags_one_video(video_file, num_frames = 10)
+		print "this_tag_list: ", this_tag_list
+		this_tag = tag_extractor.convertTagToVector(this_tag_list)
+		print "this_tag: ", this_tag
+		# save it
+		save_pickle(this_tag, tag_path)
+
+	if (this_tag is None):
+		raise ValueError("The video " + video_file + " gets no tag extracted!")
+
 	# set up test model
 	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
 		word_to_idx = pickle.load(f)
 
 	model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, 2048], dim_embed=512,
 									   dim_hidden=1024, n_time_step=16, prev2out=True,
-												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, device_id = '/gpu:0')
+												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, use_tag = use_tag, device_id = '/gpu:0')
 
 	# Test, put data as dummy (not used)
 	solver = CaptioningSolver(model, [], [], n_epochs=20, batch_size=2, update_rule='adam',
 										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
-									pretrained_model=None, model_path='model_{}/lstm/'.format(config.DATASET_SUFFIX), test_model='model_{}/lstm/model-7'.format(config.DATASET_SUFFIX),
-									 print_bleu=True, log_path='log/')
+									pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-7'.format(config.MODEL_PATH),
+									 print_bleu=True, use_tag = use_tag, log_path='log/')
 
 
 	# Test, save produced captions
-	solver.test_one_video(this_feature, video_file, attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_test_one/', dynamic_image = False)
+	solver.test_one_video(this_feature, video_file, tag = this_tag, attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_test_one/', dynamic_image = False)
 
 
 

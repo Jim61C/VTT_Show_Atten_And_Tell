@@ -198,7 +198,7 @@ class CaptioningSolver(object):
                 sys.stdout.flush()
 
 
-    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_path='./data', save_folder = 'plots', dynamic_image = False):
+    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False):
         '''
         Args:
             - data: dictionary with the following keys:
@@ -329,7 +329,7 @@ class CaptioningSolver(object):
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
                 save_pickle(all_decoded, "%s/%s/%s.candidate.captions.pkl" %(self.data_path, split, split))
 
-    def test_one_video(self, feature, this_video, attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False):
+    def test_one_video(self, feature, this_video, attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False, tag = None):
         '''
         Args:
             - data: dictionary with the following keys:
@@ -354,9 +354,16 @@ class CaptioningSolver(object):
         with tf.Session(config=config) as sess:
             saver = tf.train.Saver()
             saver.restore(sess, self.test_model)
-            features_batch = np.tile(features, (self.batch_size, 1, 1))
+            features_batch = np.tile(features, (self.batch_size, 1, 1)) # hacky way to get around being squeezed
             print "features_batch.shape:", features_batch.shape
-            feed_dict = { self.model.features: features_batch }
+
+            if (not (tag is None)):
+                tags = np.expand_dims(tag, axis = 0) # tags is (D, V)
+                tags_batch = np.tile(tags, (self.batch_size, 1)) # hacky way to get around being squeezed
+                feed_dict = { self.model.features: features_batch, self.model.tags: tags_batch }
+            else:
+                feed_dict = { self.model.features: features_batch }
+
             alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
             decoded = decode_captions(sam_cap, self.model.idx_to_word)
 
