@@ -1,5 +1,6 @@
 import skvideo.io
 import tensorflow as tf
+import matplotlib
 import matplotlib.pyplot as plt
 import skimage.transform
 import numpy as np
@@ -51,6 +52,7 @@ class CaptioningSolver(object):
         self.pretrained_model = kwargs.pop('pretrained_model', None)
         self.test_model = kwargs.pop('test_model', './model/lstm/model-1')
         self.use_tag = kwargs.pop('use_tag', False)
+        self.data_path = kwargs.pop('data_path', './data_MSRVTT')
 
         # set an optimizer by update rule
         if self.update_rule == 'adam':
@@ -161,7 +163,7 @@ class CaptioningSolver(object):
                         gen_caps = sess.run(generated_captions, feed_dict)
                         decoded = decode_captions(gen_caps, self.model.idx_to_word)
                         print "Generated caption: %s\n" %decoded[0]
-                    
+
                     sys.stdout.flush()
 
                 print "Previous epoch loss: ", prev_loss
@@ -184,19 +186,19 @@ class CaptioningSolver(object):
                         all_gen_cap[i*self.batch_size:(i+1)*self.batch_size] = gen_cap
 
                     all_decoded = decode_captions(all_gen_cap, self.model.idx_to_word)
-                    save_pickle(all_decoded, "./data_MSRVTT_mfcc/val/val.candidate.captions.pkl")
-                    scores = evaluate(data_path='./data_MSRVTT_mfcc', split='val', get_scores=True)
+                    save_pickle(all_decoded, "{}/val/val.candidate.captions.pkl".format(self.data_path))
+                    scores = evaluate(data_path= self.data_path, split='val', get_scores=True)
                     write_bleu(scores=scores, path=self.model_path, epoch=e)
 
                 # save model's parameters
                 if (e+1) % self.save_every == 0:
                     saver.save(sess, os.path.join(self.model_path, 'model'), global_step=e+1)
                     print "model-%s saved." %(e+1)
-                
+
                 sys.stdout.flush()
 
 
-    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_path='./data', save_folder = 'plots', dynamic_image = False):
+    def test(self, data, split='train', attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False):
         '''
         Args:
             - data: dictionary with the following keys:
@@ -212,7 +214,7 @@ class CaptioningSolver(object):
         if (not os.path.exists(save_folder)):
             os.makedirs(save_folder)
 
-                        
+
         features = data['features']
         if self.use_tag:
             tags = data['tags']
@@ -236,7 +238,7 @@ class CaptioningSolver(object):
 
             if attention_visualization:
                 # just check 10 random samples
-                for n in range(10):
+                for n in range(len(decoded)):
                     print "Sampled Caption: %s" %decoded[n]
 
                     # Plot original video frames
@@ -244,11 +246,11 @@ class CaptioningSolver(object):
                     # try:
                     videodata = skvideo.io.vread(str(this_video))
                     frame_count = videodata.shape[0]
-                    frames_selected = np.arange(0, frame_count, 30) # every couple of frames
+                    frames_selected = np.arange(0, frame_count, int(np.ceil(frame_count/10.0))) # every couple of frames
 
                     if (dynamic_image):
                         frame_weight = 1.0 / len(frames_selected)
-                        
+
                         # get average image across frames
                         img = videodata[0]
                         img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
@@ -279,11 +281,14 @@ class CaptioningSolver(object):
                         plt.clf()
 
                     else:
-                        for frame_pos in frames_selected:
+                        T = len(decoded[n].split(" ")) + 1
+                        for (i, frame_pos) in enumerate(frames_selected):
+                            if (i > 10):
+                                continue
                             print "plot frame:", frame_pos, "/", frame_count
                             img = videodata[frame_pos]
                             img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
-                            plt.subplot(4, 5, 1)
+                            plt.subplot(10, T, T*i + 1)
                             plt.imshow(img)
                             plt.axis('off')
 
@@ -292,16 +297,21 @@ class CaptioningSolver(object):
                             for t in range(len(words)):
                                 if t > 18:
                                     break
-                                plt.subplot(4, 5, t+2)
-                                plt.text(0, 1, '%s(%.2f)'%(words[t], bts[n,t]) , color='black', backgroundcolor='white', fontsize=8)
+                                plt.subplot(10, T, T*i + t+2)
+                                print "plot at:", T*i + t+2, '/', 10*T
+                                plt.text(0, 0, '%s(%.2f)'%(words[t], bts[n,t]) , color='black', backgroundcolor=(1, 1, 1, 0.0), fontsize=7)
                                 plt.imshow(img)
                                 alp_curr = alps[n,t,:].reshape(8,8)
                                 alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
                                 plt.imshow(alp_img, alpha=0.85)
                                 plt.axis('off')
-                            # plt.show()
-                            plt.savefig('{}/sample{}_frame{}.png'.format(save_folder, n, frame_pos))
-                            plt.clf()
+
+                        plt.tight_layout(pad=0.3, w_pad=-2, h_pad=-1.6) # TODO: this issue?
+                        plt.savefig('{}/sample{}.png'.format(save_folder, n), dpi=900)
+                        plt.clf()
+                        # matplotlib.rcdefaults()
+                        plt.close('all')
+
                     # except:
                     #     print "video ", this_video, " unreadable"
 
@@ -317,4 +327,126 @@ class CaptioningSolver(object):
                         feed_dict = { self.model.features: features_batch }
                     all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
-                save_pickle(all_decoded, save_path+"/%s/%s.candidate.captions.pkl" %(split,split))
+                save_pickle(all_decoded, "%s/%s/%s.candidate.captions.pkl" %(self.data_path, split, split))
+
+    def test_one_video(self, feature, this_video, attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False, tag = None):
+        '''
+        Args:
+            - data: dictionary with the following keys:
+            - feature: feature vector of this one video
+            - this_video: video filename of this given one test
+            - attention_visualization: If True, visualize attention weights with images for each sampled word. (ipthon notebook)
+            - save_sampled_captions: If True, save sampled captions to pkl file for computing BLEU scores.
+        '''
+        video_name = this_video[max(this_video.rfind('/')+1, 0):this_video.rfind('.')]
+        video_folder = this_video[:this_video.rfind('/') + 1] + video_name + '/' # the folder corresponding to this video name
+        save_folder = video_folder + save_folder
+        if (not os.path.exists(save_folder)):
+            os.makedirs(save_folder)
+
+        features = np.expand_dims(feature, axis = 0) # make one batch
+
+        # build a graph to sample captions
+        alphas, betas, sampled_captions = self.model.build_sampler(max_len=20)    # (N, max_len, L), (N, max_len)
+
+        config = tf.ConfigProto(allow_soft_placement=True)
+        config.gpu_options.allow_growth = True
+        with tf.Session(config=config) as sess:
+            saver = tf.train.Saver()
+            saver.restore(sess, self.test_model)
+            features_batch = np.tile(features, (self.batch_size, 1, 1)) # hacky way to get around being squeezed
+            print "features_batch.shape:", features_batch.shape
+
+            if (not (tag is None)):
+                tags = np.expand_dims(tag, axis = 0) # tags is (D, V)
+                tags_batch = np.tile(tags, (self.batch_size, 1)) # hacky way to get around being squeezed
+                feed_dict = { self.model.features: features_batch, self.model.tags: tags_batch }
+            else:
+                feed_dict = { self.model.features: features_batch }
+
+            alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
+            decoded = decode_captions(sam_cap, self.model.idx_to_word)
+
+            if attention_visualization:
+
+                print "Caption for this video: %s" %decoded[0]
+
+                # try:
+                reader = skvideo.io.FFmpegReader(str(this_video))
+                frame_count = reader.getShape()[0]
+                print "frame_count:", frame_count
+                frames_selected = np.arange(0, frame_count, int(np.ceil(frame_count/10.0))) # every couple of frames
+
+                if (dynamic_image):
+                    frame_weight = 1.0 / len(frames_selected)
+                    avg_image = np.zeros(tuple(reader.getShape()[1:]))
+
+                    for cur_frame in range(0, frame_count):
+                        try:
+                            img = reader.nextFrame().next()
+                            if (cur_frame in frames_selected):
+                                img = skimage.transform.resize(img, (255, 255))
+                                avg_image = avg_image + frame_weight * img
+                        except:
+                            print "frame", cur_frame, " can not be read"
+
+                    plt.subplot(4, 5, 1)
+                    plt.imshow(avg_image)
+                    plt.axis('off')
+
+                    # Plot images with attention weights
+                    words = decoded[0].split(" ")
+                    for t in range(len(words)):
+                        if t > 18:
+                            break
+                        plt.subplot(4, 5, t+2)
+                        plt.text(0, 1, '%s(%.2f)'%(words[t], bts[0,t]) , color='black', backgroundcolor='white', fontsize=8)
+                        plt.imshow(avg_image)
+                        alp_curr = alps[0,t,:].reshape(8,8)
+                        alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
+                        plt.imshow(alp_img, alpha=0.85)
+                        plt.axis('off')
+                    # plt.show()
+                    plt.savefig('{}/{}.png'.format(save_folder, video_name))
+                    plt.clf()
+
+                else:
+                    i = 0
+                    for cur_frame in range(0, frame_count):
+                        try:
+                            img = reader.nextFrame().next()
+                            if (cur_frame in frames_selected):
+                                T = len(decoded[0].split(" ")) + 1
+                                print "plot frame:", cur_frame, "/", frame_count
+                                img = skimage.transform.resize(img, (255, 255)) # inception original size is 229, 229
+                                # plot maximum 10 rows
+                                if i >= 10:
+                                    continue
+                                plt.subplot(10, T, T*i + 1)
+                                plt.imshow(img)
+                                plt.axis('off')
+
+                                # Plot images with attention weights
+                                words = decoded[0].split(" ")
+                                for t in range(len(words)):
+                                    if t > 18:
+                                        break
+                                    ax = plt.subplot(10, T, T*i + t+2)
+                                    plt.text(0, 0, '%s(%.2f)'%(words[t], bts[0,t]) , color='black', backgroundcolor=(1, 1, 1, 0.0), fontsize=7)
+                                    plt.imshow(img)
+                                    alp_curr = alps[0,t,:].reshape(8,8)
+                                    alp_img = skimage.transform.pyramid_expand(alp_curr, upscale=32, sigma=20)
+                                    plt.imshow(alp_img, alpha=0.85)
+                                    plt.axis('off')
+                                i += 1
+                        except:
+                            print "frame ", cur_frame, " can not be read"
+                    # plt.show()
+                    plt.tight_layout(pad=0.3, w_pad=-2, h_pad=-1.6)
+                    plt.savefig('{}/{}.png'.format(save_folder, video_name), dpi=900)
+                    plt.clf()
+                # except:
+                #     print "video ", this_video, " unreadable"
+
+            if save_sampled_captions:
+                save_pickle(decoded, video_folder + "one.candidate.caption.pkl")
