@@ -41,11 +41,12 @@ def score(ref, hypo, metric = "METEOR"):
     return final_scores
 
 def main():
-	this_metric = sys.argv[1]
-	this_split = sys.argv[2]
-	reference_file_template = './data_MSRVTT/{}/{}.references.pkl.orig'
+	this_dataset = sys.argv[1]
+	this_metric = sys.argv[2]
+	this_split = sys.argv[3]
+	reference_file_template = './{}/{}/{}.references.pkl.orig'
 
-	references = pickle.load(open(reference_file_template.format(this_split, this_split), 'rb'))
+	references = pickle.load(open(reference_file_template.format(this_dataset, this_split, this_split), 'rb'))
 
 	filtered_references = {}
 	for (i, annotations) in references.iteritems():
@@ -96,13 +97,14 @@ def main():
 			raise ValueError('Clean Too Much, score has become zero')
 
 	# dump references
-	f = open('./data_MSRVTT/{}/{}.references.filtered.{}.pkl'.format(this_split, this_split, this_metric), 'wb')
+	f = open('./{}/{}/{}.references.filtered.{}.pkl'.format(this_dataset, this_split, this_split, this_metric), 'wb')
 	pickle.dump(filtered_references, f, protocol = pickle.HIGHEST_PROTOCOL)
 	f.close()
 
 if __name__ == "__main__":
-	if len(sys.argv) != 3:
-		print "Usage: python {} metric split".format(sys.argv[0])
+	if len(sys.argv) != 4:
+		print "Usage: python {} dataset metric split".format(sys.argv[0])
+		print "dataset -- E.g. data_MSRVTT"
 		print "metric -- E.g., METEOR"
 		print "split -- E.g, test"
 		exit()
