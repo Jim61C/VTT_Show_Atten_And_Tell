@@ -54,7 +54,7 @@ elif dataset=='msrvtt_mfcc_tag':
 elif dataset=='msrvtt_gan_scratch':
     	data_path = './data_MSRVTT'
 	test_model = './model/show_and_tell/lstm_gan_scratch/model-'
-	num_model = 18
+	num_model = 40
 
 
 data = load_coco_data(data_path=data_path, split='val')
@@ -66,7 +66,7 @@ model = CaptionGenerator(word_to_idx, dim_feature=[1, 2048], dim_embed=512,
                          ctx2out=False, alpha_c=0.0, selector=False, dropout=True)
 
 output = "Bleu_4,METEOR,CIDEr,SUM\n"
-for i in range(1,num_model+1):
+for i in range(6,7): #,num_model+1):
 	solver = CaptioningSolver(model, data, data, n_epochs=15, batch_size=128, update_rule='adam',
                           learning_rate=0.0025, print_every=2000, save_every=1, image_path='./image/val2014_resized',
                           pretrained_model=None, model_path='./model/lstm', test_model=test_model+str(i),
@@ -88,8 +88,8 @@ for i in range(1,num_model+1):
 	tf.get_variable_scope().reuse_variables()
 
 
-f=open(test_model[:-6]+dataset+'.'+split+'.scores.csv','wb')
-f.write(output)
-f.close()
+#f=open(test_model[:-6]+dataset+'.'+split+'.scores.csv','wb')
+#f.write(output)
+#f.close()
 
 print "Successfully write " + split + " scores to: " + test_model[:-6] + dataset + '.' + split + '.scores.csv'
