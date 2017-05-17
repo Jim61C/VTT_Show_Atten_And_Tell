@@ -163,9 +163,11 @@ def test_one():
 
 if __name__ == "__main__":
 	if (len(sys.argv) < 2):
-		print "Usage: python {} option [split]".format(sys.argv[0])
+		print "Usage: python {} option [...]".format(sys.argv[0])
 		print "option -- E.g., csv/visualise/one"
-		print "[split] -- in case of 'csv' option, E.g., test, then test.csv will be saved"
+
+		print "\nUsage: python {} csv split".format(sys.argv[0])
+		print "split -- in case of 'csv' option, E.g., test, then test.csv will be saved"
 
 		print "\nUsage: python {} one video_file".format(sys.argv[0])
 		print "video_file -- the path to the one video to test on"
