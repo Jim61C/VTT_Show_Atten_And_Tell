@@ -130,7 +130,7 @@ plots_MSVD/
 plots_TRECVID/
 
 # config
-config.py
+# config.py
 
 # results
 results/
