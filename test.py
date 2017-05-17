@@ -26,23 +26,26 @@ plt.rcParams['figure.figsize'] = (8.0, 6.0)  # set default size of plots
 plt.rcParams['image.interpolation'] = 'nearest'
 plt.rcParams['image.cmap'] = 'gray'
 
+# use tag from OpenImage
+use_tag = False
+
 def main():
 	# load val dataset to print out bleu scores every epoch
-	val_data = load_coco_data(data_path=config.DATASET, split='val')
-	test_data = load_coco_data(data_path=config.DATASET, split='test')
+	val_data = load_coco_data(data_path=config.DATASET, split='val', use_tag = use_tag)
+	test_data = load_coco_data(data_path=config.DATASET, split='test', use_tag = use_tag)
 
 	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
 		word_to_idx = pickle.load(f)
 
-	model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, 2048], dim_embed=512,
+	model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, config.FEAT_DIM], dim_embed=512,
 									   dim_hidden=1024, n_time_step=16, prev2out=True,
-												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, device_id = '/gpu:0')
+												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, use_tag = use_tag, device_id = '/gpu:0')
 
 	# Test, put data as dummy (here just use val_data)
 	solver = CaptioningSolver(model, val_data, val_data, n_epochs=20, batch_size=98, update_rule='adam',
 										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
 									pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-7'.format(config.MODEL_PATH),
-									 print_bleu=True, log_path='log/', data_path=config.DATASET)
+									 print_bleu=True, use_tag = use_tag, log_path='log/', data_path=config.DATASET)
 
 
 	# Test, save produced captions
@@ -63,19 +66,19 @@ def test_to_csv():
 	this_split = sys.argv[2]
 	print "loading split ", this_split, '...'
 	# load val dataset to print out bleu scores every epoch
-	data = load_coco_data(data_path=config.DATASET, split=this_split)
+	data = load_coco_data(data_path=config.DATASET, split=this_split, use_tag = use_tag)
 
 	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
 		word_to_idx = pickle.load(f)
 
-	model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, 2048], dim_embed=512,
+	model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, config.FEAT_DIM], dim_embed=512,
 									   dim_hidden=1024, n_time_step=16, prev2out=True,
-												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, device_id = '/gpu:0')
+												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, use_tag = use_tag, device_id = '/gpu:0')
 	# Test, put data as dummy
 	solver = CaptioningSolver(model, data, data, n_epochs=20, batch_size=98, update_rule='adam',
 									  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
 								pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-7'.format(config.MODEL_PATH),
-								 print_bleu=True, log_path='log/', data_path=config.DATASET)
+								 print_bleu=True, use_tag = use_tag, log_path='log/', data_path=config.DATASET)
 	scores_save = {
 	'Bleu_1': [],
 	'Bleu_2': [],
@@ -105,10 +108,10 @@ def test_to_csv():
 		assert (len(scores_save[scores_save.keys()[0]]) == len(scores_save[scores_save.keys()[i]])), \
 		'metric ' + scores_save.keys()[i] + " do not have the same amount of data"
 
-	if(not os.path.exists('results_{}/'.format(config.DATASET_SUFFIX))):
-		os.makedirs('results_{}/'.format(config.DATASET_SUFFIX))
+	# if(not os.path.exists('results_{}/'.format(config.DATASET_SUFFIX))):
+	# 	os.makedirs('results_{}/'.format(config.DATASET_SUFFIX))
 
-	with open('results_{}/{}.csv'.format(config.DATASET_SUFFIX, this_split), 'wb') as csvfile:
+	with open('{}/{}.csv'.format(config.MODEL_PATH, this_split), 'wb') as csvfile:
 		writer = csv.DictWriter(csvfile, fieldnames=scores_save.keys())
 
 		writer.writeheader()
@@ -120,8 +123,6 @@ def test_to_csv():
 
 
 def test_one():
-	# use tag from OpenImage
-	use_tag = True
 
 	video_file = sys.argv[2]
 	video_name = video_file[max(video_file.rfind('/')+1, 0):video_file.rfind('.')]

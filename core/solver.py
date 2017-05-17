@@ -133,7 +133,7 @@ class CaptioningSolver(object):
                 image_idxs = image_idxs[rand_idxs]
 
                 for i in range(n_iters_per_epoch):
-                    #print "iteration: ", i+1, "self.print_every: ", self.print_every
+                    print "iteration: ", i+1, "self.print_every: ", self.print_every
                     captions_batch = captions[i*self.batch_size:(i+1)*self.batch_size]
                     image_idxs_batch = image_idxs[i*self.batch_size:(i+1)*self.batch_size]
                     features_batch = features[image_idxs_batch]
@@ -328,6 +328,7 @@ class CaptioningSolver(object):
                     all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)
                 all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
                 save_pickle(all_decoded, "%s/%s/%s.candidate.captions.pkl" %(self.data_path, split, split))
+                print "saved to ",self.data_path, "/",split,'/', split, '.candidate.captions.pkl'
 
     def test_one_video(self, feature, this_video, attention_visualization=True, save_sampled_captions=True, save_folder = 'plots', dynamic_image = False, tag = None):
         '''

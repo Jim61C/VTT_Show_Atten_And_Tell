@@ -8,14 +8,14 @@ sys.setdefaultencoding("utf-8") # to get rid of ASCII decoding issue
 
 
 def main():
-    use_tag = True
+    use_tag = False
     # load train dataset
     data = load_coco_data(data_path=config.DATASET, split='train', use_tag = use_tag)
     word_to_idx = data['word_to_idx']
     # load val dataset to print out bleu scores every epoch
     val_data = load_coco_data(data_path=config.DATASET, split='val', use_tag = use_tag)
 
-    model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, 2048], dim_embed=512,
+    model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, config.FEAT_DIM], dim_embed=512,
                                        dim_hidden=1024, n_time_step=16, prev2out=True,
                                                  ctx2out=True, alpha_c=1.0, selector=True, dropout=True, use_tag = use_tag, device_id = '/gpu:0')
 

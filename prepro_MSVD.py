@@ -12,6 +12,7 @@ import json
 import cPickle as pickle
 import config
 
+APPEND_MFCC = True
 
 def _process_caption_data(caption_file, video_dir, max_length):
     with open(caption_file) as f:
@@ -140,6 +141,10 @@ def main():
     # if word occurs less than word_count_threshold in training dataset, the word index is special unknown token.
     word_count_threshold = 5
 
+    data_save_path = 'data_MSVD'
+    if (APPEND_MFCC):
+        data_save_path += '_mfcc'
+
     # whole dataset 
     dataset = _process_caption_data(caption_file= config.MSVD_CAPTION_FILE,
                                          video_dir= config.MSVD_VIDEO_DIR,
@@ -151,30 +156,34 @@ def main():
     val_dataset   = dataset[(dataset['image_id'] >= 1200) & (dataset['image_id'] < 1300)].reset_index(drop=True)
     test_dataset  = dataset[dataset['image_id'] >= 1300].reset_index(drop=True)
     
-    save_pickle(train_dataset, 'data_MSVD/train/train.annotations.pkl')
-    save_pickle(val_dataset, 'data_MSVD/val/val.annotations.pkl')
-    save_pickle(test_dataset, 'data_MSVD/test/test.annotations.pkl')
+    save_pickle(train_dataset, '{}/train/train.annotations.pkl'.format(data_save_path))
+    save_pickle(val_dataset, '{}/val/val.annotations.pkl'.format(data_save_path))
+    save_pickle(test_dataset, '{}/test/test.annotations.pkl'.format(data_save_path))
 
     for split in ['train', 'val', 'test']:
-        annotations = load_pickle('./data_MSVD/%s/%s.annotations.pkl' % (split, split))
+        annotations = load_pickle('./%s/%s/%s.annotations.pkl' % (data_save_path, split, split))
 
         print "len(train annotations): ", len(annotations)
 
         if split == 'train':
             #word_to_idx = _build_vocab(annotations=annotations, threshold=word_count_threshold)
             word_to_idx = load_pickle('./word_to_idx_all.pkl')
-            save_pickle(word_to_idx, './data_MSVD/%s/word_to_idx.pkl' % split)
+            save_pickle(word_to_idx, './%s/%s/word_to_idx.pkl' % (data_save_path, split))
         
         captions = _build_caption_vector(annotations=annotations, word_to_idx=word_to_idx, max_length=max_length)
-        save_pickle(captions, './data_MSVD/%s/%s.captions.pkl' % (split, split))
+        save_pickle(captions, './%s/%s/%s.captions.pkl' % (data_save_path, split, split))
 
         file_names, id_to_idx = _build_file_names(annotations)
-        save_pickle(file_names, './data_MSVD/%s/%s.file.names.pkl' % (split, split))
+        save_pickle(file_names, './%s/%s/%s.file.names.pkl' % (data_save_path, split, split))
 
         video_idxs = _build_video_idxs(annotations, id_to_idx)
-        save_pickle(video_idxs, './data_MSVD/%s/%s.image.idxs.pkl' % (split, split))
+        save_pickle(video_idxs, './%s/%s/%s.image.idxs.pkl' % (data_save_path, split, split))
 
         # prepare reference captions to compute bleu scores later
+        if (APPEND_MFCC):
+            mfcc_feature_total = np.load(config.MSVD_MFCC_FEATURE_PATH)
+            video2id = load_pickle('/home/ubuntu/features/msvd/video2int.pkl')
+
         video_ids = {}
         feature_to_captions = {}
         features = []
@@ -187,13 +196,23 @@ def main():
                 # append feature
                 this_video_feature_path = config.MSVD_FEATURE_PATH_TEMPLATE.format(video_file[video_file.rfind('/')+1:video_file.find('.avi')])
                 this_video_feature = load_pickle(this_video_feature_path)
+                # append MFCC if needed
+                if (APPEND_MFCC):
+                    this_video_mfcc_feature = mfcc_feature_total[video2id[video_file[video_file.rfind('/')+1:video_file.find('.avi')]]]
+                    assert(video_id == video2id[video_file[video_file.rfind('/')+1:video_file.find('.avi')]]), \
+                    "video_id inconsistent for " + video_file[video_file.rfind('/')+1:video_file.find('.avi')]
+                    this_video_mfcc_feature = np.tile(this_video_mfcc_feature, (config.SPATIAL_DIM, 1))
+                    print "this_video_mfcc_feature.shape:", this_video_mfcc_feature.shape
+                    this_video_feature = np.concatenate((this_video_feature, this_video_mfcc_feature), axis = 1)
+                    print "this_video_feature.shape:", this_video_feature.shape
+
                 features.append(this_video_feature)
                 print "{} feature appended :".format(split), this_video_feature_path
 
             feature_to_captions[i].append(caption.lower() + ' .')
 
-        hickle.dump(np.asarray(features), './data_MSVD/%s/%s.features.hkl' % (split, split))
-        save_pickle(feature_to_captions, './data_MSVD/%s/%s.references.pkl' % (split, split))
+        hickle.dump(np.asarray(features), './%s/%s/%s.features.hkl' % (data_save_path, split, split))
+        save_pickle(feature_to_captions, './%s/%s/%s.references.pkl' % (data_save_path, split, split))
         print "Finished building %s caption dataset" %split
 
 

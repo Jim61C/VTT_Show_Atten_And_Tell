@@ -65,27 +65,36 @@ class TagExtractor(object):
             self.label_dict = label_dict
             self.sess = sess
 
-        
 
     def extract_tags_one_video(self, video_path, num_frames = 10):
         global TAGConfig
         tag_list = {}
         with self.g.as_default():
-            frames = skvideo.io.vread(video_path)
-            frame_step = frames.shape[0] / num_frames
+            reader = skvideo.io.FFmpegReader(str(video_path))
+            frame_count = reader.getShape()[0]
+            frame_step = frame_count / float(num_frames)
+            idxes_use = []
             for i in xrange(num_frames):
                 idx = np.random.choice(np.arange(round(frame_step * i), round(frame_step * (i+1)), dtype = np.int32))
-                frame = frames[idx, :, :, :]
-                predictions_eval = np.squeeze(
-                    self.sess.run(self.predictions, {self.input_image: frame[np.newaxis, :, :, :]}))
-                top_k = predictions_eval.argsort()[-TAGConfig.num_tags:][::-1]
-                for idx in top_k:
-                    mid = self.labelmap[idx]
-                    display_name = self.label_dict.get(mid, 'unknown')
-                    score = predictions_eval[idx]
-                    #print('{}: {} (score = {:.2f})'.format(idx, display_name, score))
-                    for word in display_name.split():
-                        tag_list[word.strip()] = 0
+                idxes_use.append(idx)
+
+            for idx in range(0, frame_count):
+                try:
+                    frame = reader.nextFrame().next()
+                    if (idx in idxes_use):
+                        print "Extract frame: ", idx
+                        predictions_eval = np.squeeze(
+                            self.sess.run(self.predictions, {self.input_image: frame[np.newaxis, :, :, :]}))
+                        top_k = predictions_eval.argsort()[-TAGConfig.num_tags:][::-1]
+                        for idx in top_k:
+                            mid = self.labelmap[idx]
+                            display_name = self.label_dict.get(mid, 'unknown')
+                            score = predictions_eval[idx]
+                            #print('{}: {} (score = {:.2f})'.format(idx, display_name, score))
+                            for word in display_name.split():
+                                tag_list[word.strip()] = 0
+                except:
+                    print "frame:", idx, "can not be read!"
         return sorted(tag_list.keys())
 
     def extract_tags(self, data_dict, num_frames = 10):
@@ -146,7 +155,7 @@ def LoadLabelMaps(num_classes, labelmap_path, dict_path):
     return labelmap, label_dict
 
 
-if __name__ == "__main__":
+def Extract_MFCC():
     train_val_dict = load_dataset(
         caption_file='../train_val_videodatainfo.json',
         video_dir='../videos')
@@ -170,4 +179,30 @@ if __name__ == "__main__":
     
     test_tags = extactor.extract_tags(test_dict)
     # pickle.dump(test_tags, open("tags.test.MSRVTT.pickle", 'wb'))
-    
+
+
+def Extract_MSVD():
+    # result need to be sorted by int, train split: 0:1200, val split: 1200:1300, test split: 1300:
+    video2int = pickle.load(open('/home/ubuntu/all_show_attend_and_tell/data_MSVD_mfcc/annotations/video2int.pkl', 'rb')) 
+    video_path_template = '/home/ubuntu/video_data/MSVD/YouTubeClips/{}.avi' 
+    tag_extractor = TagExtractor()
+    int2tag = {}
+
+    for (video_name, video_id) in video2int.iteritems():
+        this_tag_list = tag_extractor.extract_tags_one_video(video_path_template.format(video_name), num_frames = 10)
+        print video_id, ":", this_tag_list
+        this_tag = tag_extractor.convertTagToVector(this_tag_list)
+        int2tag[video_id] = this_tag
+
+    tag_array = []
+    for i in range(len(int2tag)):
+        tag_array.append(int2tag[i])
+
+    tag_array = np.asarray(tag_array)
+
+    hickle.dump(tag_array[0:1200, ...], open('train.tag_vectors.hkl', 'w'))
+    hickle.dump(tag_array[1200:1300, ...], open('val.tag_vectors.hkl', 'w'))
+    hickle.dump(tag_array[1300:, ...], open('test.tag_vectors.hkl', 'w'))
+
+if __name__ == "__main__":
+    Extract_MSVD()
