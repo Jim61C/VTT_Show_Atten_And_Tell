@@ -48,7 +48,7 @@ class FeatureExtractor(object):
   def extract_feature_one_image(self, img):
     """
     Input: img -- skimage read in images
-    Returns spatial pooling features on this image, (w, h, c)
+    Returns spatial pooling features on this image, (1, w, h, c)
     """
 
     #Format for the Mul:0 Tensor
@@ -103,17 +103,19 @@ class FeatureExtractor(object):
     total_feature_size = list(final_feature_size)
     total_feature_size.insert(0, 0)
 
-    total_feature = np.empty((tuple(total_feature_size)))
+    # total_feature = np.empty((tuple(total_feature_size)))
     # print "total_feature.shape:",total_feature.shape
+    total_feature = []
 
     for cur_frame in range(start_frame, end_frame + 1):
       try:
         frame = reader.nextFrame().next()
-        # print "self.extract_feature_one_image for ", cur_frame
+        print "self.extract_feature_one_image for ", cur_frame
         # start_time = time.time()
         this_feature = self.extract_feature_one_image(frame)
         # print "time spent for extract_feature_one_image for frame:", cur_frame, " = ", time.time() - start_time
-        total_feature = np.concatenate((total_feature, this_feature), axis = 0)
+        # total_feature = np.concatenate((total_feature, this_feature), axis = 0)
+        total_feature.append(this_feature[0])
 
         # log
         if ((cur_frame - start_frame) % 10 == 0):
@@ -122,6 +124,7 @@ class FeatureExtractor(object):
       except:
         print "frame ", cur_frame, " no feature extracted"
 
+    total_feature = np.asarray(total_feature)
     print "total_feature.shape: ", total_feature.shape
     return np.mean(total_feature, axis = 0)
 
