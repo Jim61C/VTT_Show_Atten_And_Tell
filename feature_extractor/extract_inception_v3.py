@@ -47,7 +47,7 @@ class FeatureExtractor(object):
 
   def extract_feature_one_image(self, img):
     """
-    Input: img -- opencv read in images
+    Input: img -- skimage read in images
     Returns spatial pooling features on this image, (w, h, c)
     """
 

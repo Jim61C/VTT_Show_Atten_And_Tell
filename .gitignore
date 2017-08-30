@@ -137,3 +137,6 @@ results/
 results_MSRVTT/
 results_MSVD/
 results_TRECVID/
+
+# tmp
+tmp/

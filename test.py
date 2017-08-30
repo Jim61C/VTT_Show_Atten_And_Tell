@@ -8,6 +8,7 @@ from core.solver import CaptioningSolver
 from core.model import CaptionGenerator
 from core.utils import load_coco_data
 from core.utils import save_pickle
+from core.utils import is_video
 from core.bleu import evaluate
 import tensorflow as tf
 import sys
@@ -166,7 +167,7 @@ def test_one():
 		raise ValueError("The video " + video_file + " gets no tag extracted!")
 
 	# set up test model
-	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
+	with open('{}/train/word_to_idx.pkl'.format(cofnig.DATASET)) as f:
 		word_to_idx = pickle.load(f)
 
 	model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, 2048], dim_embed=512,
@@ -176,27 +177,125 @@ def test_one():
 	# Test, put data as dummy (not used)
 	solver = CaptioningSolver(model, [], [], n_epochs=20, batch_size=2, update_rule='adam',
 										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
-									pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-7'.format(config.MODEL_PATH),
+									pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-8'.format(config.MODEL_PATH),
 									 print_bleu=True, use_tag = use_tag, log_path='log/')
 
 
 	# Test, save produced captions
-	solver.test_one_video(this_feature, video_file, tag = this_tag, attention_visualization=True, save_sampled_captions = True, save_folder = 'plots_test_one/', dynamic_image = False)
+	solver.test_one_video(this_feature, video_file, tag = this_tag, attention_visualization=False, save_sampled_captions = True, save_folder = 'plots_test_one/', dynamic_image = False)
+
+def test_folder():
+	# use tag from OpenImage
+	use_tag = True
+
+	folder_name = sys.argv[2]
+
+	if (folder_name[-1] != '/'):
+		folder_name += '/'
+
+	# set up test model
+	with open('{}/train/word_to_idx.pkl'.format(config.DATASET)) as f:
+		word_to_idx = pickle.load(f)
+
+	model = CaptionGenerator(word_to_idx, dim_feature=[config.SPATIAL_DIM, 2048], dim_embed=512,
+									   dim_hidden=1024, n_time_step=16, prev2out=True,
+												 ctx2out=True, alpha_c=1.0, selector=True, dropout=True, use_tag = use_tag, device_id = '/gpu:0')
+
+	# Test Solver , put data as dummy (not used)
+	solver = CaptioningSolver(model, [], [], n_epochs=20, batch_size=2, update_rule='adam',
+										  learning_rate=0.001, print_every=1000, save_every=1, image_path='./image/',
+									pretrained_model=None, model_path=config.MODEL_PATH, test_model='{}/model-8'.format(config.MODEL_PATH),
+									 print_bleu=True, use_tag = use_tag, log_path='log/')
 
 
+	extactor = FeatureExtractor('mixed_10/join:0')
+	avg_mided_10_feature_shape = (8,8,2048)
+	tag_extractor = TagExtractor()
+
+	# start testing
+	data = {}
+	data['features'] = []
+	data['tags'] = []
+	data['file_names'] = []
+
+	captions = {}
+	for video_name in sorted(os.listdir(folder_name)):
+		if is_video(video_name):
+			video_file = folder_name + video_name
+
+			print "\n Testing for video: ", video_name
+
+			# get feature
+			feature_path = config.TEST_ONE_VIDEO_FEATURE_TEMPLATE.format(video_name)
+			this_feature = None
+			if (os.path.exists(feature_path)):
+				this_feature = pickle.load(open(feature_path, 'rb'))
+				print "feature already extracted for ", video_file
+			else:
+				mixed_10_join_feature = extactor.extract_feature_video(video_file, \
+					None, None, avg_mided_10_feature_shape)
+				if (not mixed_10_join_feature is None):
+					this_feature = mixed_10_join_feature.reshape(-1, 2048)
+
+			if (this_feature is None or np.isnan(this_feature).any()):
+				raise ValueError('The Given Video File ' + video_file + " gets no feature extracted!")
+			else:
+				save_pickle(this_feature, feature_path)
+
+			# get tag
+			tag_path = config.TEST_ONE_VIDEO_TAG_TEMPLATE.format(video_name)
+			this_tag = None
+			if (os.path.exists(tag_path)):
+				this_tag = pickle.load(open(tag_path, 'rb'))
+				print "tag already extracted for ", video_file
+			else:
+				# extract tag for this video_file
+				this_tag_list = tag_extractor.extract_tags_one_video(video_file, num_frames = 10)
+				print "this_tag_list: ", this_tag_list
+				this_tag = tag_extractor.convertTagToVector(this_tag_list)
+
+			if (this_tag is None or np.isnan(this_tag).any()):
+				raise ValueError("The video " + video_file + " gets no tag extracted!")
+			else:
+				# save it
+				save_pickle(this_tag, tag_path)
+
+			# # Actual Test
+			# caption = solver.test_one_video(this_feature, video_file, tag = this_tag, attention_visualization=False, save_sampled_captions = True, save_folder = 'plots_test_one/', dynamic_image = False)
+			# captions[video_name] = caption
+
+			# # reuse variables afterwards
+			# tf.get_variable_scope().reuse_variables()
+
+			data['features'].append(this_feature)
+			data['tags'].append(this_tag)
+			data['file_names'].append(video_file)
+
+
+	# pickle.dump(captions, open(folder_name + 'captions.pkl', 'wb'), protocol = pickle.HIGHEST_PROTOCOL)
+
+	data['features'] = np.asarray(data['features'])
+	data['tags'] = np.asarray(data['tags'])
+	data['file_names'] = np.asarray(data['file_names'])	
+	solver.test_given_data(data, save_folder = folder_name)
 
 if __name__ == "__main__":
 	if (len(sys.argv) < 2):
 		print "Usage: python {} option [split]".format(sys.argv[0])
-		print "option -- E.g., csv/visualise/one"
+		print "option -- E.g., csv/visualise/one/folder"
 		print "[split] -- in case of 'csv' option, E.g., test, then test.csv will be saved"
 
 		print "\nUsage: python {} one video_file".format(sys.argv[0])
 		print "video_file -- the path to the one video to test on"
+
+		print "\nUsage: python {} folder video_folder".format(sys.argv[0])
+		print "video_folder -- the path to the folder containing the videos"
 		exit()
 	if (sys.argv[1] == 'csv'):
 		test_to_csv()
 	elif (sys.argv[1] == 'one'):
 		test_one()
+	elif (sys.argv[1] == 'folder'):
+		test_folder()
 	else:
 		main()

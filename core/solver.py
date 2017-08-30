@@ -366,10 +366,9 @@ class CaptioningSolver(object):
 
             alps, bts, sam_cap = sess.run([alphas, betas, sampled_captions], feed_dict)  # (N, max_len, L), (N, max_len)
             decoded = decode_captions(sam_cap, self.model.idx_to_word)
+            print "Caption for this video: %s" %decoded[0]
 
             if attention_visualization:
-
-                print "Caption for this video: %s" %decoded[0]
 
                 # try:
                 reader = skvideo.io.FFmpegReader(str(this_video))
@@ -450,3 +449,50 @@ class CaptioningSolver(object):
 
             if save_sampled_captions:
                 save_pickle(decoded, video_folder + "one.candidate.caption.pkl")
+
+        return decoded[0]
+
+
+    def test_given_data(self, data, save_folder = None):
+        '''
+        Args:
+            - data: dictionary with the following keys:
+            - save_folder: place to save the captions, if not
+        '''
+
+        features = data['features']
+        if self.use_tag:
+            tags = data['tags']
+
+        # build a graph to sample captions
+        alphas, betas, sampled_captions = self.model.build_sampler(max_len=20) # (N, max_len, L), (N, max_len)
+
+        config = tf.ConfigProto(allow_soft_placement=True)
+        config.gpu_options.allow_growth = True
+        with tf.Session(config=config) as sess:
+            saver = tf.train.Saver()
+            saver.restore(sess, self.test_model)
+
+            # get test captions
+            all_sam_cap = np.ndarray((features.shape[0], 20))
+            num_iter = int(np.ceil(float(features.shape[0]) / self.batch_size))
+            for i in range(num_iter):
+                features_batch = features[i*self.batch_size:(i+1)*self.batch_size]
+                if self.use_tag:
+                    tags_batch = tags[i*self.batch_size:(i+1)*self.batch_size]
+                    feed_dict = { self.model.features: features_batch, self.model.tags: tags_batch }
+                else:
+                    feed_dict = { self.model.features: features_batch }
+                all_sam_cap[i*self.batch_size:(i+1)*self.batch_size] = sess.run(sampled_captions, feed_dict)
+            all_decoded = decode_captions(all_sam_cap, self.model.idx_to_word)
+
+            # check if need to save
+            if not save_folder is None:
+                # create folder
+                if (not os.path.exists(save_folder)):
+                    os.makedirs(save_folder)
+                if (save_folder[-1] == '/'):
+                    save_folder = save_folder[:-1]
+                save_pickle(all_decoded, "%s/candidate.captions.pkl" %(save_folder))
+
+            return all_decoded

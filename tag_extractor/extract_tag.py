@@ -71,7 +71,23 @@ class TagExtractor(object):
         global TAGConfig
         tag_list = {}
         with self.g.as_default():
-            frames = skvideo.io.vread(video_path)
+            # frames shape: [n_frame, w, h, c], use try except to avoid broken frames
+            try:
+                frames = skvideo.io.vread(video_path)
+            except:
+                frames = []
+                reader = skvideo.io.FFmpegReader(str(video_path))
+                start_frame = 0
+                frame_count = reader.getShape()[0]
+                end_frame = frame_count -1
+                for cur_frame in range(start_frame, end_frame + 1):
+                  try:
+                    frame = reader.nextFrame().next()
+                    frames.append(frame)
+                  except:
+                    print "frame ", cur_frame, " no data read"
+                frames = np.asarray(frames) # make it an np array
+
             frame_step = frames.shape[0] / num_frames
             for i in xrange(num_frames):
                 idx = np.random.choice(np.arange(round(frame_step * i), round(frame_step * (i+1)), dtype = np.int32))
